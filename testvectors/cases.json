@@ -1,0 +1,696 @@
+{
+ "note": "Made-up keys, published for testing only. Never use them for anything real.",
+ "cases": [
+  {
+   "id": "bundle-two-pieces",
+   "file": "bundle-two-pieces.sealed",
+   "size": 1310968,
+   "sealed_sha256": "d4c7c3ab967e76f344296b262c0ddf78977e185a53a90bd2d57b0d4856c68cd8",
+   "header": {
+    "kind": 1,
+    "created": 1789285265000,
+    "n": 1170987,
+    "message_id": "f9e0fe51bdd35e8bd0f9db778a842f3a",
+    "writer_key_id": "b18d92ca1a68f1ee00654857adfa285ff34d7652a2e8d688938b70c8723044f9"
+   },
+   "reader": "collector",
+   "where": "up",
+   "expect": "ok",
+   "content_sha256": "0bc60ef4392c819fb75f33197adfe7e7b94a0dd826b6377601de30f7410a9b25",
+   "length": 1310720,
+   "pieces": 2,
+   "deliveries": [
+    {
+     "app": "org.example.tracker",
+     "delivery": "a1b2c3d4-000001",
+     "digest": "48b36299590faa4a51d99a422e99a6c983f3bacd9ed7ee845de100caba00eb28",
+     "result": "stored"
+    },
+    {
+     "app": "org.example.tracker",
+     "delivery": "a1b2c3d4-000002",
+     "digest": "9576f171d7c882ed5d00d22e771c0355769704a9dff56261375b70c096e6d037",
+     "result": "stored"
+    }
+   ]
+  },
+  {
+   "id": "flip-enc",
+   "file": "bundle-two-pieces.sealed",
+   "mutations": [
+    {
+     "op": "flip",
+     "offset": 5,
+     "bit": 0
+    }
+   ],
+   "reader": "collector",
+   "where": "up",
+   "expect": "reject",
+   "reason": "damaged"
+  },
+  {
+   "id": "flip-header",
+   "file": "bundle-two-pieces.sealed",
+   "mutations": [
+    {
+     "op": "flip",
+     "offset": 60,
+     "bit": 3
+    }
+   ],
+   "reader": "collector",
+   "where": "up",
+   "expect": "reject",
+   "reason": "damaged"
+  },
+  {
+   "id": "flip-piece-0",
+   "file": "bundle-two-pieces.sealed",
+   "mutations": [
+    {
+     "op": "flip",
+     "offset": 1152,
+     "bit": 7
+    }
+   ],
+   "reader": "collector",
+   "where": "up",
+   "expect": "reject",
+   "reason": "bad-signature"
+  },
+  {
+   "id": "flip-piece-1",
+   "file": "bundle-two-pieces.sealed",
+   "mutations": [
+    {
+     "op": "flip",
+     "offset": 1048844,
+     "bit": 1
+    }
+   ],
+   "reader": "collector",
+   "where": "up",
+   "expect": "reject",
+   "reason": "bad-signature"
+  },
+  {
+   "id": "flip-signature",
+   "file": "bundle-two-pieces.sealed",
+   "mutations": [
+    {
+     "op": "flip",
+     "offset": 1310958,
+     "bit": 4
+    }
+   ],
+   "reader": "collector",
+   "where": "up",
+   "expect": "reject",
+   "reason": "bad-signature"
+  },
+  {
+   "id": "cut-end",
+   "file": "bundle-two-pieces.sealed",
+   "mutations": [
+    {
+     "op": "cut",
+     "length": 1310904
+    }
+   ],
+   "reader": "collector",
+   "where": "up",
+   "expect": "reject",
+   "reason": "damaged"
+  },
+  {
+   "id": "remove-piece-1",
+   "file": "bundle-two-pieces.sealed",
+   "mutations": [
+    {
+     "op": "remove",
+     "offset": 1048744,
+     "length": 262160
+    }
+   ],
+   "reader": "collector",
+   "where": "up",
+   "expect": "reject",
+   "reason": "damaged"
+  },
+  {
+   "id": "swap-pieces",
+   "file": "bundle-two-pieces.sealed",
+   "mutations": [
+    {
+     "op": "swap",
+     "offset": 152,
+     "first": 1048592,
+     "second": 262160
+    }
+   ],
+   "reader": "collector",
+   "where": "up",
+   "expect": "reject",
+   "reason": "bad-signature"
+  },
+  {
+   "id": "append-byte",
+   "file": "bundle-two-pieces.sealed",
+   "mutations": [
+    {
+     "op": "append",
+     "bytes": "00"
+    }
+   ],
+   "reader": "collector",
+   "where": "up",
+   "expect": "reject",
+   "reason": "damaged"
+  },
+  {
+   "id": "over-the-limit",
+   "file": "bundle-two-pieces.sealed",
+   "reader": "collector",
+   "where": "up",
+   "max_sealed": 1048576,
+   "expect": "reject",
+   "reason": "too-big"
+  },
+  {
+   "id": "opened-with-retired-key",
+   "file": "bundle-retired-key.sealed",
+   "reader": "collector",
+   "where": "up",
+   "expect": "ok",
+   "size": 262376,
+   "sealed_sha256": "76cbc717a3893b219865e56dc2b5b5465b498125240b0326b98b67401c266a60",
+   "header": {
+    "kind": 1,
+    "created": 1789285265000,
+    "n": 947,
+    "message_id": "617cf0db90244b80b5eedb857982f930",
+    "writer_key_id": "b18d92ca1a68f1ee00654857adfa285ff34d7652a2e8d688938b70c8723044f9"
+   },
+   "content_sha256": "d57decfc8d4462dc974a30c7608cf908c4f310fdcedcc884328ed21d963ae3af",
+   "deliveries": [
+    {
+     "app": "org.example.tracker",
+     "delivery": "a1b2c3d4-000003",
+     "digest": "774d2655104f0d5df4f908cf80694204475051753e37ed4aa88f128f3cd719fa",
+     "result": "stored"
+    }
+   ]
+  },
+  {
+   "id": "bundle-one-bad-delivery",
+   "file": "bundle-one-bad-delivery.sealed",
+   "size": 262376,
+   "sealed_sha256": "8be563fc8d616260253dae77750da736a868626655c3962fec3c2abb54bcf2c0",
+   "header": {
+    "kind": 1,
+    "created": 1789285265000,
+    "n": 8474,
+    "message_id": "8b9c06af66c35fa490c362db3f8131a9",
+    "writer_key_id": "b18d92ca1a68f1ee00654857adfa285ff34d7652a2e8d688938b70c8723044f9"
+   },
+   "reader": "collector",
+   "where": "up",
+   "expect": "ok",
+   "content_sha256": "2f436f2abada36d58a3ecd0196eb70f7c75e3d5c954f0fae7516497b4cc3ed25",
+   "deliveries": [
+    {
+     "app": "org.example.tracker",
+     "delivery": "a1b2c3d4-000004",
+     "digest": "93de00c1e37f6d5c8d6b4018867c84d1fcf042a41af298607ff6a77774e21abf",
+     "result": "stored"
+    },
+    {
+     "app": "org.example.tracker",
+     "delivery": "a1b2c3d4-000005",
+     "digest": "9997df258446557ec694fa07468456cdc169fd66899c303985a3a306b86097bd",
+     "result": "rejected",
+     "reason": "bad-file"
+    },
+    {
+     "app": "org.example.tracker",
+     "delivery": "a1b2c3d4-000006",
+     "digest": "e51db972bf9e32a2c0c9d953b4fd3189f5d9ec30a1f6a2d636c02ff92906737b",
+     "result": "stored"
+    }
+   ]
+  },
+  {
+   "id": "bundle-bad-names",
+   "file": "bundle-bad-names.sealed",
+   "size": 262376,
+   "sealed_sha256": "a565c9040e98a9c1ad5e0bdbaf410f8b0031fa87d937475f47453bed4ff4a95a",
+   "header": {
+    "kind": 1,
+    "created": 1789285265000,
+    "n": 4031,
+    "message_id": "8ab439438e16d1c48ccace67cb69863a",
+    "writer_key_id": "b18d92ca1a68f1ee00654857adfa285ff34d7652a2e8d688938b70c8723044f9"
+   },
+   "reader": "collector",
+   "where": "up",
+   "expect": "ok",
+   "content_sha256": "60e2007eadf12082e2bf9c2c5883669948d16559ba1e00ddd5ab50856b6913da",
+   "deliveries": [
+    {
+     "app": "../x",
+     "delivery": "n-000001",
+     "digest": "20d6a341adc0db95cee42775bc2e6e8506259063bc34e184442bfe14acb1847c",
+     "result": "rejected",
+     "reason": "bad-name"
+    },
+    {
+     "app": "/x",
+     "delivery": "n-000002",
+     "digest": "20d6a341adc0db95cee42775bc2e6e8506259063bc34e184442bfe14acb1847c",
+     "result": "rejected",
+     "reason": "bad-name"
+    },
+    {
+     "app": "a",
+     "delivery": "n-000003",
+     "digest": "20d6a341adc0db95cee42775bc2e6e8506259063bc34e184442bfe14acb1847c",
+     "result": "rejected",
+     "reason": "bad-name"
+    },
+    {
+     "app": "a\nb.c",
+     "delivery": "n-000004",
+     "digest": "20d6a341adc0db95cee42775bc2e6e8506259063bc34e184442bfe14acb1847c",
+     "result": "rejected",
+     "reason": "bad-name"
+    },
+    {
+     "app": "org.example.tracker",
+     "delivery": "CON",
+     "digest": "20d6a341adc0db95cee42775bc2e6e8506259063bc34e184442bfe14acb1847c",
+     "result": "rejected",
+     "reason": "bad-name"
+    },
+    {
+     "app": "org.example.tracker",
+     "delivery": "n-000005.",
+     "digest": "20d6a341adc0db95cee42775bc2e6e8506259063bc34e184442bfe14acb1847c",
+     "result": "rejected",
+     "reason": "bad-name"
+    },
+    {
+     "app": "org.example.tracker",
+     "delivery": "n-000006",
+     "digest": "acafafc101fc12e7b7d55127ba8c8ad742acfe3cea98b5fc58ce19bffef691e4",
+     "result": "rejected",
+     "reason": "bad-name"
+    },
+    {
+     "app": "org.example.tracker",
+     "delivery": "n-000007",
+     "digest": "8d3438a783ff5f6644df2bdf8f04a246bd02494251dd95682c1badb6cdd551b0",
+     "result": "rejected",
+     "reason": "bad-name"
+    },
+    {
+     "app": "org.example.tracker",
+     "delivery": "n-000008",
+     "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "result": "rejected",
+     "reason": "no-files"
+    },
+    {
+     "app": "org.example.tracker",
+     "delivery": "n-000009",
+     "digest": "20d6a341adc0db95cee42775bc2e6e8506259063bc34e184442bfe14acb1847c",
+     "result": "stored"
+    }
+   ]
+  },
+  {
+   "id": "bundle-same-delivery-twice",
+   "file": "bundle-same-delivery-twice.sealed",
+   "size": 262376,
+   "sealed_sha256": "efb03418eaf61f777ccefea8fc883d898ba5139f3810a61a21d97476d767cd35",
+   "header": {
+    "kind": 1,
+    "created": 1789285265000,
+    "n": 1852,
+    "message_id": "4ce1ee446dfd0591b8540bd3c8a77b5a",
+    "writer_key_id": "b18d92ca1a68f1ee00654857adfa285ff34d7652a2e8d688938b70c8723044f9"
+   },
+   "reader": "collector",
+   "where": "up",
+   "expect": "reject",
+   "reason": "bad-content"
+  },
+  {
+   "id": "bundle-nonzero-padding",
+   "file": "bundle-nonzero-padding.sealed",
+   "size": 262376,
+   "sealed_sha256": "5667632243b6ae2d8892c22fc8f3ca177224e73e09bd1cfcb4bc9094ff41fd89",
+   "header": {
+    "kind": 1,
+    "created": 1789285265000,
+    "n": 947,
+    "message_id": "a19bd2a15f6cd3e175c62c8e306f0910",
+    "writer_key_id": "b18d92ca1a68f1ee00654857adfa285ff34d7652a2e8d688938b70c8723044f9"
+   },
+   "reader": "collector",
+   "where": "up",
+   "expect": "reject",
+   "reason": "damaged"
+  },
+  {
+   "id": "bundle-wrong-size",
+   "file": "bundle-wrong-size.sealed",
+   "size": 262376,
+   "sealed_sha256": "ce57d9ef43a02766d2873a490ee750668b306fadbb2f08db725f19d4389c9eb3",
+   "header": {
+    "kind": 1,
+    "created": 1789285265000,
+    "n": 300000,
+    "message_id": "59cc569e840414f5cdae001d6ed60b58",
+    "writer_key_id": "b18d92ca1a68f1ee00654857adfa285ff34d7652a2e8d688938b70c8723044f9"
+   },
+   "reader": "collector",
+   "where": "up",
+   "expect": "reject",
+   "reason": "damaged"
+  },
+  {
+   "id": "bundle-unknown-sender",
+   "file": "bundle-unknown-sender.sealed",
+   "size": 262376,
+   "sealed_sha256": "013f96b1c02463d385bcc6edcc09bc600483b43c954d6944d04353d304f8046c",
+   "header": {
+    "kind": 1,
+    "created": 1789285265000,
+    "n": 947,
+    "message_id": "e373e749436f4d6b673b969723f98446",
+    "writer_key_id": "c077b81ab612cbdeb8262e1e6f360328add4f85dfbb805c84244f9e293452614"
+   },
+   "reader": "collector",
+   "where": "up",
+   "expect": "reject",
+   "reason": "unknown-sender"
+  },
+  {
+   "id": "bundle-other-signature",
+   "file": "bundle-other-signature.sealed",
+   "size": 262376,
+   "sealed_sha256": "1421ba41badb32a3942277cbbd49cf5a28d286f2fd556090bc8e4373d57f14b7",
+   "header": {
+    "kind": 1,
+    "created": 1789285265000,
+    "n": 947,
+    "message_id": "15438a7716f5e8c0d9bafadb15b9cf90",
+    "writer_key_id": "b18d92ca1a68f1ee00654857adfa285ff34d7652a2e8d688938b70c8723044f9"
+   },
+   "reader": "collector",
+   "where": "up",
+   "expect": "reject",
+   "reason": "bad-signature"
+  },
+  {
+   "id": "bundle-for-another-collector",
+   "file": "bundle-for-another-collector.sealed",
+   "size": 262376,
+   "sealed_sha256": "16eb2d862b49e253445ef4d18db4d0abf78bfe974f78ec2e9c0c1c6c00ae7c82",
+   "header": {
+    "kind": 1,
+    "created": 1789285265000,
+    "n": 947,
+    "message_id": "5ad093b45069d118a8f64c8c0bb61033",
+    "writer_key_id": "b18d92ca1a68f1ee00654857adfa285ff34d7652a2e8d688938b70c8723044f9"
+   },
+   "reader": "collector",
+   "where": "up",
+   "expect": "reject",
+   "reason": "damaged"
+  },
+  {
+   "id": "bundle-kind-3",
+   "file": "bundle-kind-3.sealed",
+   "size": 262376,
+   "sealed_sha256": "b39f72d885586237884f2ad260101bf32a372993dddb8d2c98adf764d5c83b47",
+   "header": {
+    "kind": 3,
+    "created": 1789285265000,
+    "n": 259020,
+    "message_id": "2a6b2964c3746308c957951fc0de7f7c",
+    "writer_key_id": "b18d92ca1a68f1ee00654857adfa285ff34d7652a2e8d688938b70c8723044f9"
+   },
+   "reader": "collector",
+   "where": "up",
+   "expect": "reject",
+   "reason": "damaged"
+  },
+  {
+   "id": "pair-request",
+   "file": "pair-request.sealed",
+   "size": 262376,
+   "sealed_sha256": "6fde721a7895f99c1f601b4939c5b6fae194da33a5f5dc1fe16ced0cb5fb727b",
+   "header": {
+    "kind": 2,
+    "created": 1789285265000,
+    "n": 292,
+    "message_id": "183c521d52924c6738b8b1718af9628e",
+    "writer_key_id": "b18d92ca1a68f1ee00654857adfa285ff34d7652a2e8d688938b70c8723044f9"
+   },
+   "reader": "collector",
+   "where": "up",
+   "expect": "ok",
+   "manifest": {
+    "v": 1,
+    "type": "pair",
+    "pairing": "h7oD7D1s85Q3xcHn3Sl--w",
+    "sender_sign": "BATu9jfR7xTRn3Aqr5W7IAPGW8vChLbVhXCv7Ki1IGemQZ5VBbtZATf6J1xoFy6iVlmqiw2d8IEIX_Y-Erf49Po",
+    "sender_open": "uGk0efquXD-8W-pQGSCwnkjEpdai8Bu5Sfh53RyFjUo",
+    "label": "Phone",
+    "mac": "iEqQl_3RqsZqPxYDaZAF4c8G8HEunLNfpgthtjyqCFA"
+   },
+   "pair_check": null,
+   "fingerprint": "OGTQ 5KXW TGEE RKY7"
+  },
+  {
+   "id": "pair-request-again",
+   "file": "pair-request-again.sealed",
+   "size": 262376,
+   "sealed_sha256": "3382010f6c053dad1f4bf25c56ade5bf4e66ab517e3c3694ad8220c4ca84c3e3",
+   "header": {
+    "kind": 2,
+    "created": 1789285265000,
+    "n": 370,
+    "message_id": "8a6da93eacb1d3c455ec5360e9c4fdc0",
+    "writer_key_id": "b18d92ca1a68f1ee00654857adfa285ff34d7652a2e8d688938b70c8723044f9"
+   },
+   "reader": "collector",
+   "where": "up",
+   "expect": "ok",
+   "manifest": {
+    "v": 1,
+    "type": "pair",
+    "pairing": "h7oD7D1s85Q3xcHn3Sl--w",
+    "sender_sign": "BATu9jfR7xTRn3Aqr5W7IAPGW8vChLbVhXCv7Ki1IGemQZ5VBbtZATf6J1xoFy6iVlmqiw2d8IEIX_Y-Erf49Po",
+    "sender_open": "uGk0efquXD-8W-pQGSCwnkjEpdai8Bu5Sfh53RyFjUo",
+    "label": "Phone",
+    "replaces": "2691020866c8d2a7e39e16e2fba6480bc5374ff99a2c299503cbf79f05909de9",
+    "mac": "Brr-Uh3eok5czKvyLIxybovY9FPzWOnfwnpdnd2serQ"
+   },
+   "pair_check": null,
+   "fingerprint": "OGTQ 5KXW TGEE RKY7"
+  },
+  {
+   "id": "pair-request-zero-replaces",
+   "file": "pair-request-zero-replaces.sealed",
+   "size": 262376,
+   "sealed_sha256": "cfb50b3f197a7d3974653407b40c97477adeeb137e93da7e1a7b15e6bf99d6f9",
+   "header": {
+    "kind": 2,
+    "created": 1789285265000,
+    "n": 370,
+    "message_id": "48fd14da9c9843168a7f379303f99102",
+    "writer_key_id": "b18d92ca1a68f1ee00654857adfa285ff34d7652a2e8d688938b70c8723044f9"
+   },
+   "reader": "collector",
+   "where": "up",
+   "expect": "ok",
+   "manifest": {
+    "v": 1,
+    "type": "pair",
+    "pairing": "h7oD7D1s85Q3xcHn3Sl--w",
+    "sender_sign": "BATu9jfR7xTRn3Aqr5W7IAPGW8vChLbVhXCv7Ki1IGemQZ5VBbtZATf6J1xoFy6iVlmqiw2d8IEIX_Y-Erf49Po",
+    "sender_open": "uGk0efquXD-8W-pQGSCwnkjEpdai8Bu5Sfh53RyFjUo",
+    "label": "Phone",
+    "replaces": "0000000000000000000000000000000000000000000000000000000000000000",
+    "mac": "iEqQl_3RqsZqPxYDaZAF4c8G8HEunLNfpgthtjyqCFA"
+   },
+   "pair_check": "replaces is all zeros",
+   "fingerprint": "OGTQ 5KXW TGEE RKY7"
+  },
+  {
+   "id": "receipt",
+   "file": "receipt.sealed",
+   "size": 4328,
+   "sealed_sha256": "c663964408b4924a0127b8d4c2b99535ffe5669886b0b9af7b51418eb9516599",
+   "header": {
+    "kind": 3,
+    "created": 1789285265000,
+    "n": 980,
+    "message_id": "8f631780d7d393497419d6aaa1da56dc",
+    "writer_key_id": "80e7b3448456419eb7ad172ad8ceefe77a154bf89ad41e13a80b40d0febf41c0"
+   },
+   "reader": "sender",
+   "where": "ack",
+   "expect": "ok",
+   "manifest": {
+    "v": 1,
+    "type": "receipt",
+    "for": "b18d92ca1a68f1ee00654857adfa285ff34d7652a2e8d688938b70c8723044f9",
+    "time": 1789285999000,
+    "stored": [
+     {
+      "message": "f9e0fe51bdd35e8bd0f9db778a842f3a",
+      "sealed_sha256": "d4c7c3ab967e76f344296b262c0ddf78977e185a53a90bd2d57b0d4856c68cd8",
+      "received": 1789285900000,
+      "deliveries": [
+       {
+        "app": "org.example.tracker",
+        "delivery": "a1b2c3d4-000001",
+        "digest": "48b36299590faa4a51d99a422e99a6c983f3bacd9ed7ee845de100caba00eb28",
+        "result": "stored",
+        "seq": 1
+       },
+       {
+        "app": "org.example.tracker",
+        "delivery": "a1b2c3d4-000002",
+        "digest": "9576f171d7c882ed5d00d22e771c0355769704a9dff56261375b70c096e6d037",
+        "result": "stored",
+        "seq": 2
+       }
+      ]
+     }
+    ],
+    "rejected": [
+     {
+      "name": "abcdefghijklmnopqrstuvwxyz234567",
+      "size": 262376,
+      "reason": "damaged",
+      "at": 1789285865000
+     }
+    ],
+    "status": {
+     "collector": "1.0.0",
+     "instance": "cff0aab28c29a6723b6f60fc94d24023",
+     "seq": 2,
+     "last_pickup": 1789285900000,
+     "last_backup": null,
+     "free_bytes": 201234567890,
+     "max_sealed": 4294967296,
+     "warnings": [],
+     "rejected_7d": 1,
+     "rejected_more": 0,
+     "vanished_7d": 0
+    }
+   }
+  },
+  {
+   "id": "paired-receipt",
+   "file": "paired-receipt.sealed",
+   "size": 4328,
+   "sealed_sha256": "00d5bfbfc00e359df362bd769e7d31a6cafa60a4df5e08682ff967ad5f0076cb",
+   "header": {
+    "kind": 3,
+    "created": 1789285265000,
+    "n": 156,
+    "message_id": "9a48e6851bfbcdbeb7483a4387fd6250",
+    "writer_key_id": "80e7b3448456419eb7ad172ad8ceefe77a154bf89ad41e13a80b40d0febf41c0"
+   },
+   "reader": "sender",
+   "where": "ack",
+   "expect": "ok",
+   "manifest": {
+    "v": 1,
+    "type": "paired",
+    "for": "b18d92ca1a68f1ee00654857adfa285ff34d7652a2e8d688938b70c8723044f9",
+    "pairing": "h7oD7D1s85Q3xcHn3Sl--w",
+    "time": 1789285325000
+   }
+  },
+  {
+   "id": "receipt-signed-by-sender",
+   "file": "receipt-signed-by-sender.sealed",
+   "size": 4328,
+   "sealed_sha256": "eac0b239d3790a35fc89d878e32db92c94556f5ce2fbac88989f3bfe66b1124d",
+   "header": {
+    "kind": 3,
+    "created": 1789285265000,
+    "n": 980,
+    "message_id": "2a6e7f03e7b8e4b80e455fa53427df08",
+    "writer_key_id": "80e7b3448456419eb7ad172ad8ceefe77a154bf89ad41e13a80b40d0febf41c0"
+   },
+   "reader": "sender",
+   "where": "ack",
+   "expect": "reject",
+   "reason": "bad-signature"
+  },
+  {
+   "id": "receipt-for-another-phone",
+   "file": "receipt-for-another-phone.sealed",
+   "size": 4328,
+   "sealed_sha256": "62529e9b1d3aed6cf8aba577b0da274009bf0af3328a79eca8846138fef8fb9e",
+   "header": {
+    "kind": 3,
+    "created": 1789285265000,
+    "n": 980,
+    "message_id": "d25e356688b8494d6f1fa21d49539966",
+    "writer_key_id": "80e7b3448456419eb7ad172ad8ceefe77a154bf89ad41e13a80b40d0febf41c0"
+   },
+   "reader": "sender",
+   "where": "ack",
+   "expect": "reject",
+   "reason": "damaged"
+  },
+  {
+   "id": "receipt-wrong-direction",
+   "file": "receipt-wrong-direction.sealed",
+   "size": 4328,
+   "sealed_sha256": "f257de18d22be84ed12b72aa145c5c7be486eb1555a747f58ea077d8dbb596f6",
+   "header": {
+    "kind": 3,
+    "created": 1789285265000,
+    "n": 980,
+    "message_id": "9da687991e84beb2497fe5ebdc526f8d",
+    "writer_key_id": "80e7b3448456419eb7ad172ad8ceefe77a154bf89ad41e13a80b40d0febf41c0"
+   },
+   "reader": "sender",
+   "where": "ack",
+   "expect": "reject",
+   "reason": "damaged"
+  },
+  {
+   "id": "receipt-cut",
+   "file": "receipt.sealed",
+   "mutations": [
+    {
+     "op": "cut",
+     "length": 4000
+    }
+   ],
+   "reader": "sender",
+   "where": "ack",
+   "expect": "reject",
+   "reason": "damaged"
+  },
+  {
+   "id": "bundle-read-as-receipt",
+   "file": "bundle-retired-key.sealed",
+   "reader": "sender",
+   "where": "ack",
+   "expect": "reject",
+   "reason": "damaged"
+  }
+ ]
+}

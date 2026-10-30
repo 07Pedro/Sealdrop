@@ -63,8 +63,8 @@ flowchart LR
 |---|---|---|
 | [docs/PROTOCOL.md](docs/PROTOCOL.md) | the exact format and behaviour of both sides | third version |
 | `android/` | the Sealdrop app (Android 17 or newer, Kotlin) | to come |
-| `collector/` | the collector (Python 3, two dependencies: `cryptography`, and `segno` for the pairing QR code) | to come |
-| `testvectors/` | made-up keys and sealed files that both sides must handle the same way | to come |
+| `collector/` | the collector (Python 3, two dependencies: `cryptography`, and `segno` for the pairing QR code) | format core done, the rest to come |
+| `testvectors/` | made-up keys and sealed files that both sides must handle the same way | done |
 
 ## How Sealdrop compares with existing projects
 

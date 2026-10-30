@@ -1,0 +1,34 @@
+{
+ "note": "Made-up keys, published for testing only. Never use them for anything real.",
+ "collector_open": {
+  "private": "E7gy6GE438RvKbO03spU7-7XXnZ4ZJuarEK3RhJFFsc",
+  "public": "W5AKSegGz2lgDuCZzmSoaPMcah9FccgulBy64In0glc"
+ },
+ "collector_open_retired": {
+  "private": "ami2b7BRkrjvfD8qtDsWHsP2494cWJZbAcX8YBKveiw",
+  "public": "HE3PxyDrtWG_B-fsvR9lG0xNMscRQ5EZivjzysq-gQo"
+ },
+ "collector_sign": {
+  "private": "K7r28CIeaKdBGDrYp7EVb_milznfTw5FEkqf_-0P7Sc",
+  "public": "aeAE22O8F0zAJY66KpjsDZ_FTuy0BCZhl4y2hVELe7I",
+  "key_id": "80e7b3448456419eb7ad172ad8ceefe77a154bf89ad41e13a80b40d0febf41c0"
+ },
+ "sender_sign": {
+  "private": "jSFJ-ldnltoRHQhGEKX5GjLT2Z5Z0PjixjMvmEpzUBw",
+  "public": "BATu9jfR7xTRn3Aqr5W7IAPGW8vChLbVhXCv7Ki1IGemQZ5VBbtZATf6J1xoFy6iVlmqiw2d8IEIX_Y-Erf49Po",
+  "key_id": "b18d92ca1a68f1ee00654857adfa285ff34d7652a2e8d688938b70c8723044f9"
+ },
+ "sender_open": {
+  "private": "ex1nD7TWwLCva7etC4_qHf7dcERkNNbmNyzvEyWqxiY",
+  "public": "uGk0efquXD-8W-pQGSCwnkjEpdai8Bu5Sfh53RyFjUo"
+ },
+ "stranger_sign": {
+  "private": "oUS2uKwbG7p7KFNIWYK3Y6RFUstxwvzfVY1JG_B1o5c",
+  "public": "BFy-U-ByZKHzMzPVe6Ly_o6MZE8lCxBCQKfpd7DsdW_vT-f5z734PvS1r2cXwNghpSb8FYKjO_7UCCPCXarCwQ8",
+  "key_id": "c077b81ab612cbdeb8262e1e6f360328add4f85dfbb805c84244f9e293452614"
+ },
+ "stranger_open": {
+  "private": "dKYrpZmf5aeFJBrU4YX5NTyqPb4XO8_5esXRRcFqwdk",
+  "public": "YVprcMJSxfRJKxXT-erdgEhHaNtG5QBxJTvuqoDk8UE"
+ }
+}

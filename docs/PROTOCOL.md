@@ -271,7 +271,9 @@ receipts quote it (§6).
 - **Two levels of failure:**
   - **The whole file** is rejected only for an envelope failure: its size, the header, the signature, a piece's tag,
     the padding, or a manifest that can't be read (not valid under §3's rules, an unknown `v` or `type`, more than
-    1,000 deliveries or 10,000 files, the same `app` and `delivery` twice, or file sizes that don't add up to `n`).
+    1,000 deliveries or 10,000 files, no deliveries, the same `app` and `delivery` twice, an `app` or `delivery`
+    longer than 100 characters (receipts quote both, so they must stay short), or file sizes that don't add up to
+    `n`). A field of the wrong type (a size that isn't an integer, for example) counts as unreadable too.
   - **Everything else is decided per delivery:** names (above), limits, a delivery without files, and each file's size
     and checksum. A delivery that fails is rejected alone (`"result": "rejected"` with a `reason`, §6); the bundle's
     other deliveries are stored as usual. The collector still reads through the rejected delivery's bytes, so every
@@ -961,9 +963,12 @@ log/         the collector's log (rotated)
   - manifests that break §3's JSON rules (a duplicate name, `1.0`, `1e3`, a lone surrogate, padded base64url);
   - signatures with a short `r` and with a high `s` (both accepted), and with `r` = 0 and `s` ≥ n (rejected).
 - **Both sides must** open the good files to exactly the expected content and reject every broken one.
-- **HPKE picks a fresh one-time key each time,** so the same input never gives the same file. The test files are
-  therefore made once, by the Python side. In addition, each side seals and the other opens, in a test that runs the
-  Android code on the emulator.
+- **Broken copies** of the big bundle are described in `cases.json` as operations (flip a bit, cut, remove, swap,
+  append), which both sides apply, so they aren't stored.
+- **The test files are made by the Python side** (`testvectors/make_testvectors.py`). HPKE normally picks a fresh
+  one-time key each time; here it comes from the test-only key schedule below, and ECDSA signs deterministically
+  (RFC 6979), so making the files again gives the same bytes, and a test checks that. In addition, each side seals
+  and the other opens, in a test that runs the Android code on the emulator.
 - **RFC 9180's test vector** for this suite (appendix A.2) runs on Android directly. Python's HPKE can't run it (no
   `aad`, only the first message, no fixed one-time key), so `testvectors/` adds a small test-only RFC 9180 key
   schedule built on pyca's X25519, HKDF, HMAC and ChaCha20-Poly1305. It must reproduce A.2, and what it seals must

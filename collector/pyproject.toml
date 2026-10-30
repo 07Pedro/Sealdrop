@@ -1,0 +1,18 @@
+[project]
+name = "sealdrop-collector"
+version = "0.1.0"
+description = "Picks up sealed files from an S3-compatible inbox and stores them (Sealdrop protocol, version 1)."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+dependencies = [
+    "cryptography>=47",
+    "segno>=1.6",
+]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["sealdrop"]
