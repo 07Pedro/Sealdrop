@@ -3,8 +3,8 @@
 **A one-way drop box from apps on your Android phone to your own server at home, through a storage bucket that
 can't read what it holds.**
 
-> **Status: design stage.** The protocol is written down in [docs/PROTOCOL.md](docs/PROTOCOL.md) (a draft, second
-> version); no code yet. Don't rely on it for anything.
+> **Status: being built.** The protocol is written down in [docs/PROTOCOL.md](docs/PROTOCOL.md) (third version,
+> after two reviews). Don't rely on any of it yet.
 
 ## What it's for
 
@@ -17,8 +17,8 @@ can't read what it holds.**
 
 **What Sealdrop does:**
 1. The app hands its files to Sealdrop on the phone.
-2. Sealdrop seals them so that only your server can open them, signs them with a key it keeps in the phone's
-   security chip, and drops them into the bucket.
+2. Sealdrop seals them so that only your server can open them, signs them with a key that can't leave the phone
+   (Android's Keystore), and drops them into the bucket.
 3. Your server's collector checks the bucket every few minutes. It picks the files up, checks them, stores them and
    deletes them from the bucket.
 4. The collector sends a receipt back the same way, so the phone knows the files are safe.
@@ -50,8 +50,9 @@ flowchart LR
 - **Signed:** by a P-256 key that Sealdrop creates in the phone's security chip (Android StrongBox, or the TEE where
   there's none). The collector accepts nothing else.
 - **Quiet on the outside:** random names, no metadata, one bundle per sync, rounded sizes.
-- **Narrow keys:** the phone's storage keys can upload and read receipts. They can't read or list uploads, and they
-  can't really delete them: they could hide one, but the collector still finds hidden files.
+- **Narrow keys:** the phone's storage keys can upload and read receipts. They can't read or list uploads, and with a
+  versioned bucket (as at Backblaze) they can't really delete them: they could hide one, but the collector still
+  finds hidden files.
 - **Paired once** with a QR code shown on the server.
 - **Safe to repeat:** the collector stores first, then writes the receipt, then deletes the upload. The phone keeps
   its copies until the receipt arrives.
@@ -60,7 +61,7 @@ flowchart LR
 
 | Part | What | State |
 |---|---|---|
-| [docs/PROTOCOL.md](docs/PROTOCOL.md) | the exact format and behaviour of both sides | draft |
+| [docs/PROTOCOL.md](docs/PROTOCOL.md) | the exact format and behaviour of both sides | third version |
 | `android/` | the Sealdrop app (Android 17 or newer, Kotlin) | to come |
 | `collector/` | the collector (Python 3, two dependencies: `cryptography`, and `segno` for the pairing QR code) | to come |
 | `testvectors/` | made-up keys and sealed files that both sides must handle the same way | to come |
@@ -89,7 +90,8 @@ probably the better choice: they have years of use and review behind them, and S
   receipts (which deliveries arrived, and when).
 - **Every upload is signed by the phone.** With a shared password, anyone who has it can make files that look
   genuine. Sealdrop's collector accepts only files signed by the paired phone's key, which Sealdrop creates in the
-  security chip. (The collector can't check that yet; key attestation comes later.)
+  phone's Keystore, in the security chip where there is one. (The collector can't check that yet; key attestation
+  comes later.)
 - **Receipts close the loop.** The phone learns that the server has stored each delivery (checked against
   checksums) before it lets go of its copies.
 - **Less visible on the outside.** rclone crypt and Cryptomator keep one stored object per file, with its size
