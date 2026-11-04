@@ -4,11 +4,13 @@ Run it in your own terminal, with a fresh master application key at hand:
 
     python -m sealdrop.setup_b2 --test    # a test bucket; its keys go into a file, for trying Sealdrop out
     python -m sealdrop.setup_b2           # the inbox; its keys are shown once, for your password manager
+    python -m sealdrop.setup_b2 --keys    # lists Sealdrop's keys, and deletes the ones you choose (a lost phone)
 
 It makes a private bucket with Backblaze's encryption, no object lock and the expiry rules, and four keys, each
 limited to one folder and one job. Then it tries each key over the S3 interface, with test files it deletes again.
 If a key can do more or less than it should, it deletes the keys and the bucket it made, and says what went wrong.
-The master key is asked for at a prompt that doesn't show it, and is never saved.
+The master key is asked for at a prompt that doesn't show it, and is never saved. No key's secret is ever shown
+except the new ones, once; of key IDs only the last four characters, to match them with your password manager.
 """
 
 from __future__ import annotations
@@ -48,6 +50,8 @@ ROLES = {
     "collector-receipts": (ACK, ["writeFiles"]),
 }
 
+KEY_NAMES = set(ROLES) | {f"test-{role}" for role in ROLES}
+NEEDED_FOR_KEYS = {"listKeys", "deleteKeys", "listBuckets"}
 NEEDED = {"listBuckets", "writeBuckets", "deleteBuckets", "readBucketEncryption", "writeBucketEncryption",
           "listKeys", "writeKeys", "deleteKeys", "listFiles", "deleteFiles", "writeFiles"}
 
@@ -258,7 +262,8 @@ def try_keys(trial: Trial, bucket: str, clients: dict[str, s3.Client], version_o
     trial.refused("can't hide an upload", lambda: acks.delete_object(bucket, n1))
 
     trial.say("phone-receipts (Sealdrop reads receipts with it):")
-    trial.allowed("lists the receipts", lambda: same(r1 in all_names(receipts, bucket, ACK), True, "receipt not listed"))
+    trial.allowed("lists the receipts",
+                  lambda: same(r1 in all_names(receipts, bucket, ACK), True, "receipt not listed"))
     trial.allowed("reads a receipt", lambda: same(receipts.get_object(bucket, r1).body, receipt))
     trial.refused("can't write a receipt", lambda: receipts.put_object(bucket, random_name(ACK), small))
     trial.refused("can't hide a receipt", lambda: receipts.delete_object(bucket, r1))
@@ -301,7 +306,8 @@ def try_keys(trial: Trial, bucket: str, clients: dict[str, s3.Client], version_o
     trial.allowed("reads an upload made in parts", big_read)
     if hidden:
         trial.allowed("reads a hidden upload by its version ID",
-                      lambda: same(pickup.get_object(bucket, n4, version_id=version_of(n4)).body, small), required=False)
+                      lambda: same(pickup.get_object(bucket, n4, version_id=version_of(n4)).body, small),
+                      required=False)
     trial.refused("can't upload", lambda: pickup.put_object(bucket, random_name(UP), small))
     trial.refused("can't hide an upload (a delete by name needs the write permission)",
                   lambda: pickup.delete_object(bucket, n1))
@@ -345,6 +351,9 @@ class Ui:
     def confirm(self, prompt: str) -> bool:
         return input(prompt + " [y/N] ").strip().lower() in ("y", "yes")
 
+    def ask(self, prompt: str) -> str:
+        return input(prompt)
+
     def pause(self, prompt: str) -> None:
         input(prompt)
 
@@ -369,11 +378,7 @@ def _role_name(role: str, test: bool) -> str:
     return f"test-{role}" if test else role
 
 
-def run(args, ui: Ui, account_factory=b2.Account, client_factory=s3.Client, sleep=time.sleep,
-        now=lambda: datetime.datetime.now(datetime.UTC)) -> int:
-    test = args.test
-    ui.say(f"Sealdrop: setting up {'a test inbox' if test else 'the inbox'} at Backblaze B2")
-    ui.say()
+def login(ui: Ui, account_factory, needed: set[str]) -> b2.Account:
     ui.say("Paste a fresh master application key (Backblaze web console → Application Keys). It isn't shown or saved.")
     key_id = ui.secret("Master application key ID: ").strip()
     key = ui.secret("Master application key: ").strip()
@@ -384,10 +389,19 @@ def run(args, ui: Ui, account_factory=b2.Account, client_factory=s3.Client, slee
     except b2.B2Error as e:
         raise SetupError(f"Backblaze didn't accept the key ({e.code}). Copy both parts again, or make a new master "
                          "key.") from e
-    missing = NEEDED - account.capabilities
+    missing = needed - account.capabilities
     if missing:
-        raise SetupError("this key can't make buckets and keys for the whole account: use the master application "
+        raise SetupError("this key can't manage buckets and keys for the whole account: use the master application "
                          f"key (missing: {', '.join(sorted(missing))})")
+    return account
+
+
+def run(args, ui: Ui, account_factory=b2.Account, client_factory=s3.Client, sleep=time.sleep,
+        now=lambda: datetime.datetime.now(datetime.UTC)) -> int:
+    test = args.test
+    ui.say(f"Sealdrop: setting up {'a test inbox' if test else 'the inbox'} at Backblaze B2")
+    ui.say()
+    account = login(ui, account_factory, NEEDED)
     if not account.region:
         raise SetupError(f"can't tell the region from {account.s3_url}")
     if account.server_time and abs((now() - account.server_time).total_seconds()) > 10 * 60:
@@ -467,9 +481,9 @@ def run(args, ui: Ui, account_factory=b2.Account, client_factory=s3.Client, slee
         if trial.failed:
             raise SetupError(f"{len(trial.failed)} of {len(trial.checks)} checks failed (FAIL above): the keys "
                              "don't do exactly their job.")
+        more = {0: "", 1: " One detail to know about: NOTE above."}
         ui.say(f"All {len(trial.checks) - len(notes)} required checks passed."
-               + {0: "", 1: " One detail to know about: NOTE above."}.get(len(notes),
-                                                                         f" {len(notes)} details to know about: NOTE above."))
+               + more.get(len(notes), f" {len(notes)} details to know about: NOTE above."))
     except BaseException as e:
         _undo(account, made, ui)
         if isinstance(e, SetupError):
@@ -547,6 +561,60 @@ def next_steps(ui: Ui, bucket: str, test: bool) -> None:
     ui.say("     Everyday use stays far below; a flood of junk uploads can't cost more than that a day.")
 
 
+def manage_keys(ui: Ui, account_factory=b2.Account) -> int:
+    """Lists Sealdrop's keys (by their names) and deletes the ones the owner picks. Never shows a secret: Backblaze
+    doesn't give them out again anyway, and of each key ID only the last four characters are shown."""
+    ui.say("Sealdrop: the storage keys at Backblaze B2")
+    ui.say()
+    account = login(ui, account_factory, NEEDED_FOR_KEYS)
+    buckets = {b["bucketId"]: b["bucketName"]
+               for b in account.call("b2_list_buckets", {"accountId": account.account_id})["buckets"]}
+    keys = account.list_keys()
+    ours = sorted((k for k in keys if k.get("keyName") in KEY_NAMES),
+                  key=lambda k: (k["keyName"].startswith("test-"),
+                                 [buckets.get(b, "?") for b in k.get("bucketIds") or []], k["keyName"]))
+    ui.say()
+    if not ours:
+        ui.say(f"No Sealdrop keys in this account ({len(keys)} other keys)." if keys else "No keys in this account.")
+        return 0
+    ui.say("Sealdrop's keys:")
+    for number, k in enumerate(ours, 1):
+        where = ", ".join(buckets.get(b, "a deleted bucket") for b in k.get("bucketIds") or []) or "ALL buckets"
+        ui.say(f"  {number:>2}. {k['keyName']:<24} key ID …{k['applicationKeyId'][-4:]}   "
+               f"{where} {k.get('namePrefix') or ''}   {', '.join(sorted(k.get('capabilities') or []))}")
+    if len(keys) > len(ours):
+        ui.say(f"  ({len(keys) - len(ours)} other keys of the account aren't Sealdrop's and aren't shown.)")
+    ui.say()
+    ui.say("A lost phone: delete its phone-upload and phone-receipts. The key ID's end is in your password manager.")
+    answer = ui.ask("Numbers of the keys to delete (for example: 1 2), or just Enter to delete none: ").strip()
+    if not answer:
+        ui.say("Nothing deleted.")
+        return 0
+    try:
+        numbers = sorted({int(part) for part in answer.replace(",", " ").split()})
+    except ValueError:
+        raise SetupError("only numbers from the list, please; nothing was deleted") from None
+    if not numbers or numbers[0] < 1 or numbers[-1] > len(ours):
+        raise SetupError(f"the numbers go from 1 to {len(ours)}; nothing was deleted")
+    chosen = [ours[n - 1] for n in numbers]
+    for k in chosen:
+        ui.say(f"  {k['keyName']}  (key ID …{k['applicationKeyId'][-4:]})")
+    if not ui.confirm(f"Delete {'this key' if len(chosen) == 1 else f'these {len(chosen)} keys'} for good? Whatever "
+                      "uses it stops working at once."):
+        ui.say("Nothing deleted.")
+        return 0
+    for k in chosen:
+        account.delete_key(k["applicationKeyId"])
+    left = {k["applicationKeyId"] for k in account.list_keys()}
+    if any(k["applicationKeyId"] in left for k in chosen):
+        raise SetupError("Backblaze still lists a key that was deleted; run this again to check")
+    ui.say(f"Deleted, and checked: {'it is' if len(chosen) == 1 else 'they are'} gone.")
+    ui.say()
+    ui.say("Now replace the master key: web console → Application Keys → Generate New Master Application Key → Yes,")
+    ui.say("and close it without copying the new one.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m sealdrop.setup_b2",
                                      description="Sets up a Sealdrop inbox at Backblaze B2 and tries its keys.")
@@ -554,15 +622,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--bucket", help="the bucket's name (default: inbox- or test-inbox- and random letters)")
     parser.add_argument("--test-keys", default="~/.config/sealdrop-test/storage.json",
                         help="with --test: where the keys go (default: %(default)s)")
+    parser.add_argument("--keys", action="store_true",
+                        help="list Sealdrop's keys and delete the ones you choose, instead of setting up")
     args = parser.parse_args(argv)
+    if args.keys and (args.test or args.bucket):
+        parser.error("--keys goes alone")
     if not (sys.stdin.isatty() and sys.stdout.isatty()):
         print("Run this in a terminal: it asks for a key and shows the result on screen, never into a file or pipe.",
               file=sys.stderr)
         return 2
-    if not args.test and (os.environ.get("TMUX") or os.environ.get("STY")):
+    if not args.test and not args.keys and (os.environ.get("TMUX") or os.environ.get("STY")):
         print("Note: tmux and screen keep their own history of what's shown, and the keys will be shown once.")
     try:
-        return run(args, Ui())
+        return manage_keys(Ui()) if args.keys else run(args, Ui())
     except SetupError as e:
         print(f"\nStopped: {e}", file=sys.stderr)
         print("\nThe master key you pasted still works. Unless you run this again right away, replace it: web console "

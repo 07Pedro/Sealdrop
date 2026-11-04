@@ -29,6 +29,7 @@ key from Backblaze's web console (Application Keys). Run it **in your own termin
 ```sh
 python3 -m sealdrop.setup_b2 --test   # a test bucket first: its keys go into ~/.config/sealdrop-test/storage.json
 python3 -m sealdrop.setup_b2          # the inbox: its keys are shown once, for your password manager
+python3 -m sealdrop.setup_b2 --keys   # lists Sealdrop's keys and deletes the ones you pick (a lost phone)
 ```
 
 - **What it makes:** a private bucket (`inbox-` and random letters, or `--bucket NAME`) with Backblaze's encryption
@@ -55,8 +56,15 @@ python3 -m sealdrop.setup_b2          # the inbox: its keys are shown once, for 
 - **The keys:** with `--test`, they go into a file readable by you only, and aren't shown. Without it, they're shown
   once; press Enter when they're in your password manager, and the screen and its scrollback are cleared. A terminal
   that keeps its own history (tmux, screen, session logging) keeps them too.
+- **`--keys`** lists the account's Sealdrop keys (by their names, the test ones too): bucket, folder, permissions and
+  the last four characters of the key ID, to match them with your password manager. Never a secret. You type the
+  numbers of the keys to delete, confirm, and it checks that they're gone. Use it for a lost phone (its
+  `phone-upload` and `phone-receipts`) or a lost server (its `collector-…` keys), and then replace the master key.
+  Backblaze's web console doesn't always list keys made through its interface, so this is the reliable way.
 - **Caps & Alerts** can't be set through an interface: set a daily cap for storage, downloads, Class B and Class C
-  transactions in the console, so a flood of junk uploads can't run up a bill.
+  transactions in the console, so a flood of junk uploads can't run up a bill. An account without a payment method
+  has its free limits as caps: when storage is full, uploads stop until a payment method is added; the daily limits
+  (downloads, requests) reset each day. Sealdrop warns in plain words either way (PROTOCOL.md §9.3).
 
 ## Tests
 

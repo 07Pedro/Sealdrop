@@ -355,8 +355,8 @@ collector's signing key, and uploaded to `ack/<random name>`.
   - `last_pickup`: when the collector last picked up an upload; `null` until it has picked up any;
   - `last_backup`: from the server's backup job, if there is one (§10); otherwise `null`;
   - `max_sealed`: the collector's limit for one sealed file; the phone packs by it (§9.2);
-  - `warnings`: the collector's problems, as strings: `disk-full`, `inbox-flooded`, `conflict` (§10). Unknown ones
-    are ignored;
+  - `warnings`: the collector's problems, as strings: `disk-full`, `inbox-flooded`, `conflict`, `storage-cap` (§10).
+    Unknown ones are ignored;
   - `rejected_7d` and `vanished_7d`: counts over the last 7 days (§10).
 - **Status receipt:** at the end of a run, the collector writes a receipt with an empty `stored` for each sender that
   got no receipt in the last 24 hours. So the phone can show the server's state even when nothing was sent.
@@ -754,7 +754,11 @@ parcelable SenderInfo { boolean paired; String fingerprint; long lastPickup; lon
   only").
 - **Warnings** (in `SenderInfo`):
   - a delivery has waited in the inbox for more than 2 days;
-  - the storage refused a key, or its spending cap is reached;
+  - the storage refused a key;
+  - **the storage account's limit is reached** (`cap exceeded`, §8): a free plan's limit, or a spending cap the owner
+    set. This one is said in plain words, because nothing else will tell the owner: "The storage account's limit is
+    reached, so uploads are paused. Nothing is lost: everything waits on this phone and is sent once the limit lifts.
+    On a free plan, adding a payment method lifts it; daily limits also reset each day.";
   - the phone's clock is wrong;
   - the collector reported rejected files, or a delivery failed (§6);
   - not paired, or a key is missing (pair again, §9.4);
@@ -762,7 +766,8 @@ parcelable SenderInfo { boolean paired; String fingerprint; long lastPickup; lon
   - sending has been held for more than 24 hours;
   - can't read receipts: a receipt opened but failed its checks, or `ack/` had new receipts but none passed for 3
     days. The collector writes every sender at least one receipt a day, so this means something is wrong;
-  - the collector reports a problem: its disk is full, the inbox is flooded, or a conflict (§10);
+  - the collector reports a problem: its disk is full, the inbox is flooded, a conflict, or the storage account's
+    limit stops its pickups (§10);
   - the collector lost deliveries, which are handed over again (§6).
 - Each bit's scope, and when it clears, is in §9.1.
 
@@ -906,7 +911,9 @@ log/         the collector's log (rotated)
   inbox, and listed in the next receipts. A downloaded one is moved into `rejected/` with its reason before it's
   deleted from the inbox; nothing goes there for a file rejected before its download.
 - **The status's `warnings`:** `disk-full` while uploads are skipped for space; `inbox-flooded` while one walk
-  through `up/` takes more than one run; `conflict` for 7 days after a new conflict.
+  through `up/` takes more than one run; `conflict` for 7 days after a new conflict; `storage-cap` while the last run
+  stopped on a `cap exceeded` answer (§8; a free plan's daily download limit, for example). Writing receipts usually
+  still works then, so the phone hears of it.
 
 ### The store: the contract with whatever reads it
 

@@ -20,8 +20,9 @@ from sealdrop import b2, s3, setup_b2
 
 
 class FakeUi(setup_b2.Ui):
-    def __init__(self, answers=("000master", "K000mastersecret"), confirm=True):
+    def __init__(self, answers=("000master", "K000mastersecret"), confirm=True, asks=()):
         self.answers = list(answers)
+        self.asks = list(asks)
         self.confirmed = confirm
         self.lines: list[str] = []
         self.events: list[str] = []
@@ -36,6 +37,10 @@ class FakeUi(setup_b2.Ui):
     def confirm(self, prompt):
         self.lines.append(prompt)
         return self.confirmed
+
+    def ask(self, prompt):
+        self.lines.append(prompt)
+        return self.asks.pop(0)
 
     def pause(self, prompt):
         self.events.append(f"pause after {len(self.lines)} lines")
@@ -228,6 +233,72 @@ class Setup(unittest.TestCase):
         self.assertIn("other keys of the account can reach this bucket too: laptop-backup", ui.text)
 
 
+class ManageKeys(unittest.TestCase):
+    """`--keys`: lists Sealdrop's keys and deletes the ones picked (a lost phone)."""
+
+    def setUp(self):
+        self.fake = FakeB2()
+        self.folder = tempfile.TemporaryDirectory()
+        self.factory = functools.partial(b2.Account, transport=self.fake)
+        for test in (True, False):  # a test inbox and the inbox, four keys each
+            args = argparse.Namespace(test=test, bucket=None, test_keys=str(Path(self.folder.name, "keys.json")))
+            setup_b2.run(args, FakeUi(), account_factory=self.factory,
+                         client_factory=functools.partial(s3.Client, transport=self.fake), sleep=lambda s: None)
+        self.fake.keys["005other"] = Key("005other", "Kother", "laptop-backup", ["listFiles"])
+        self.inbox = next(b["bucketName"] for b in self.fake.buckets.values() if b["bucketName"].startswith("inbox-"))
+
+    def tearDown(self):
+        self.folder.cleanup()
+
+    def manage(self, asks, confirm=True):
+        ui = FakeUi(confirm=confirm, asks=asks)
+        return setup_b2.manage_keys(ui, account_factory=self.factory), ui
+
+    def test_list(self):
+        code, ui = self.manage([""])
+        self.assertEqual(code, 0)
+        listed = [line for line in ui.lines if line.startswith("   ") and ". " in line[:6]]
+        self.assertEqual([line.split()[1] for line in listed],
+                         ["collector-pickup", "collector-receipts", "phone-receipts", "phone-upload",
+                          "test-collector-pickup", "test-collector-receipts", "test-phone-receipts",
+                          "test-phone-upload"])  # the inbox first, then the test inbox; not laptop-backup
+        self.assertIn(f"{self.inbox} up/   writeFiles", listed[3])
+        self.assertIn("1 other keys of the account", ui.text)
+        for k in self.fake.keys.values():  # no secret, and of the IDs only the end
+            self.assertNotIn(k.secret, ui.text)
+            self.assertNotIn(k.id, ui.text)
+            if k.name != "laptop-backup":
+                self.assertIn(f"key ID …{k.id[-4:]}", ui.text)
+        self.assertNotIn(self.fake.master.secret, ui.text)
+        self.assertIn("Nothing deleted.", ui.text)
+        self.assertEqual(len(self.fake.keys), 9)
+
+    def test_lost_phone(self):
+        code, ui = self.manage(["3, 4"])
+        self.assertEqual(code, 0)
+        self.assertEqual(sorted(k.name for k in self.fake.keys.values()),
+                         ["collector-pickup", "collector-receipts", "laptop-backup", "test-collector-pickup",
+                          "test-collector-receipts", "test-phone-receipts", "test-phone-upload"])
+        self.assertIn("Deleted, and checked: they are gone.", ui.text)
+        self.assertIn("Generate New Master Application Key", ui.text)
+
+    def test_nothing_deleted_unless_sure(self):
+        for asks, confirm in ((["9"], True), (["0"], True), (["two"], True), (["1"], False)):
+            with self.subTest(asks=asks, confirm=confirm):
+                try:
+                    self.manage(asks, confirm)
+                except setup_b2.SetupError as e:
+                    self.assertIn("nothing was deleted", str(e))
+                self.assertEqual(len(self.fake.keys), 9)
+
+    def test_needs_the_master_key(self):
+        self.fake.keys["005weak"] = Key("005weak", "Kweak", "weak", ["listKeys", "listBuckets"])
+        with self.assertRaises(setup_b2.SetupError) as caught:
+            setup_b2.manage_keys(FakeUi(answers=("005weak", "Kweak"), asks=["1"]), account_factory=self.factory)
+        self.assertIn("deleteKeys", str(caught.exception))
+        self.assertEqual(len(self.fake.keys), 10)
+
+
 class ReadBack(unittest.TestCase):
     def test_rules_compared_without_nulls_and_order(self):
         bucket = {"bucketType": "allPrivate",
@@ -245,11 +316,12 @@ class ReadBack(unittest.TestCase):
 
     def test_key_read_back(self):
         good = {"capabilities": ["readFiles", "listFiles"], "bucketIds": ["b1"], "namePrefix": "ack/"}
-        self.assertEqual(setup_b2.key_problems(good, "b1", "ack/", ["listFiles", "readFiles"]), [])
-        self.assertEqual(len(setup_b2.key_problems({**good, "bucketIds": None}, "b1", "ack/", ["listFiles", "readFiles"])), 1)
-        self.assertEqual(len(setup_b2.key_problems({**good, "namePrefix": None}, "b1", "ack/", ["listFiles", "readFiles"])), 1)
-        self.assertEqual(len(setup_b2.key_problems({**good, "expirationTimestamp": 1}, "b1", "ack/",
-                                                   ["listFiles", "readFiles"])), 1)
+        wanted = ("b1", "ack/", ["listFiles", "readFiles"])
+        self.assertEqual(setup_b2.key_problems(good, *wanted), [])
+        for changed in ({"bucketIds": None}, {"namePrefix": None}, {"expirationTimestamp": 1},
+                        {"capabilities": ["readFiles", "listFiles", "writeFiles"]}):
+            with self.subTest(changed):
+                self.assertEqual(len(setup_b2.key_problems({**good, **changed}, *wanted)), 1)
 
     def test_names(self):
         self.assertRegex(setup_b2.random_name("up/"), r"^up/[a-z2-7]{32}$")

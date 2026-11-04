@@ -108,7 +108,8 @@ class FakeB2:
         name = target.removeprefix("/b2api/v4/")
         if name == "b2_authorize_account":
             assert host == "api.backblazeb2.com" and method == "GET"
-            key_id, _, secret = base64.b64decode(headers["authorization"].removeprefix("Basic ")).decode().partition(":")
+            basic = headers["authorization"].removeprefix("Basic ")
+            key_id, _, secret = base64.b64decode(basic).decode().partition(":")
             key = self.master if key_id == self.master.id else self.keys.get(key_id)
             if key is None or key.secret != secret:
                 return self._error(401, "bad_auth_token")  # what Backblaze answers (seen 2026-11-04)
