@@ -24,18 +24,22 @@ import javax.crypto.spec.GCMParameterSpec
  * keys: StrongBox if the phone has it, otherwise the TEE; no user authentication and no validity end, so they work
  * while the phone is locked.
  */
-class Vault(private val context: Context) {
+class Vault(
+    context: Context,
+    private val file: File = File(context.filesDir, "secrets.bin"),
+    /** Keystore aliases start with it; the tests use their own. */
+    private val prefix: String = "sealdrop.",
+) {
     /** A key is missing or can no longer be used: Sealdrop stops sending and asks to pair again (§9.4). */
     class Broken(message: String, cause: Throwable? = null) : Exception(message, cause)
 
     private val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-    private val file = File(context.filesDir, "secrets.bin")
 
     // --- signing keys -----------------------------------------------------------------------------------------------
 
     /** A new P-256 signing key; gives its alias. */
     fun newSigningKey(): String {
-        val alias = "sealdrop.sign." + Encoding.hex(Encoding.randomBytes(8))
+        val alias = prefix + "sign." + Encoding.hex(Encoding.randomBytes(8))
         fun spec(strongBox: Boolean) = KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_SIGN)
             .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
             .setDigests(KeyProperties.DIGEST_SHA256)
@@ -73,9 +77,9 @@ class Vault(private val context: Context) {
     // --- the secrets file -------------------------------------------------------------------------------------------
 
     private fun wrapKey(create: Boolean): SecretKey? {
-        (keyStore.getKey(WRAP, null) as? SecretKey)?.let { return it }
+        (keyStore.getKey(wrap, null) as? SecretKey)?.let { return it }
         if (!create) return null
-        fun spec(strongBox: Boolean) = KeyGenParameterSpec.Builder(WRAP, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+        fun spec(strongBox: Boolean) = KeyGenParameterSpec.Builder(wrap, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
             .setKeySize(256)
             .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
@@ -134,11 +138,9 @@ class Vault(private val context: Context) {
     fun wipe() {
         synchronized(this) {
             file.delete()
-            for (alias in keyStore.aliases().toList()) if (alias.startsWith("sealdrop.")) deleteKey(alias)
+            for (alias in keyStore.aliases().toList()) if (alias.startsWith(prefix)) deleteKey(alias)
         }
     }
 
-    companion object {
-        private const val WRAP = "sealdrop.wrap"
-    }
+    private val wrap = prefix + "wrap"
 }

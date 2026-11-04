@@ -92,11 +92,13 @@ fun WelcomeScreen(onScan: () -> Unit = {}) {
 }
 
 /** The camera, with a frame to aim. `error`: why the last code didn't work. The camera feed itself is drawn by
- *  CameraX behind this; the previews draw a stand-in (`fakeCamera`). */
+ *  CameraX behind this (`camera`); the previews draw a stand-in (`fakeCamera`). */
 @Composable
-fun ScanScreen(error: String? = null, fakeCamera: Boolean = false, onCancel: () -> Unit = {}) {
+fun ScanScreen(
+    error: String? = null, fakeCamera: Boolean = false, onCancel: () -> Unit = {}, camera: (@Composable () -> Unit)? = null,
+) {
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        if (fakeCamera) FakeCameraView()
+        if (fakeCamera) FakeCameraView() else camera?.invoke()
         Canvas(Modifier.fillMaxSize()) { drawFrame() }
         Column(Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp)) {
             Text(

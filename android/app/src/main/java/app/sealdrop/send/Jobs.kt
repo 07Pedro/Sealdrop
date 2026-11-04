@@ -60,6 +60,24 @@ class Jobs : JobService() {
         }
     }
 
+    interface Later {
+        fun sendSoon()
+        fun sendNow()
+        fun afterHold()
+        fun pairing()
+        fun ensure()
+        fun cancelAll()
+    }
+
+    class Real(private val context: Context) : Later {
+        override fun sendSoon() = Companion.sendSoon(context)
+        override fun sendNow() = Companion.sendNow(context)
+        override fun afterHold() = Companion.afterHold(context)
+        override fun pairing() = Companion.pairing(context)
+        override fun ensure() = Companion.ensure(context)
+        override fun cancelAll() = Companion.cancelAll(context)
+    }
+
     companion object {
         const val SEND = 1
         const val RECEIPTS = 2

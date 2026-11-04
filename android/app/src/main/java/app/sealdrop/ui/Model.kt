@@ -6,10 +6,10 @@ import androidx.compose.ui.graphics.ImageBitmap
 data class AppUi(val name: String, val packageName: String, val note: String = "", val icon: ImageBitmap? = null)
 
 /** An app's hold: it asked Sealdrop not to send for now (docs/PROTOCOL.md §9.1). */
-data class HoldUi(val app: String, val since: String)
+data class HoldUi(val app: String, val since: String, val packageName: String = "")
 
 /** A delivery the server refused twice (state 6, §9.1): the owner sends it again or discards it. */
-data class FailedUi(val app: String, val size: String, val since: String, val reason: String)
+data class FailedUi(val app: String, val size: String, val since: String, val reason: String, val key: Pair<String, String>? = null)
 
 /** The warnings of §9.3, each said in plain words (`warningText`). `detail` fills in the numbers. */
 enum class WarningKind {

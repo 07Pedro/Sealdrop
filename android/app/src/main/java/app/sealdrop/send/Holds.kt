@@ -49,7 +49,7 @@ object Holds {
         if (!was) return
         db.putLong(LAST_END, engine.clock())
         engine.changed()
-        if (!held(engine)) Jobs.afterHold(engine.context)
+        if (!held(engine)) engine.later.afterHold()
     }
 
     /** Warning bit 6: one or more apps holding, with no gap of a minute or more, for 24 hours. */

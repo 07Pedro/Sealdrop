@@ -82,7 +82,7 @@ class Pairer(private val engine: Engine) {
         temporary.renameTo(request)
         seen.clear()
         Engine.log("pairing started")
-        Jobs.pairing(engine.context)
+        engine.later.pairing()
         return fingerprint
     }
 
@@ -166,8 +166,8 @@ class Pairer(private val engine: Engine) {
         }
         Engine.log("paired")
         engine.changed()
-        Jobs.sendNow(engine.context)
-        Jobs.ensure(engine.context)
+        engine.later.sendNow()
+        engine.later.ensure()
     }
 
     /** Stops a running pairing (the codes differ, or the owner gave up): its new keys go. */
@@ -182,7 +182,7 @@ class Pairer(private val engine: Engine) {
     /** Unpairing: every key and secret, and the copies the collector hasn't confirmed (§9.4). Approvals stay. */
     fun unpair() {
         stop()
-        Jobs.cancelAll(engine.context)
+        engine.later.cancelAll()
         engine.vault.wipe()
         engine.forgetSecrets()
         db.tx {

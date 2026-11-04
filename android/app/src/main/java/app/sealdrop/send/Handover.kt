@@ -234,7 +234,7 @@ class Handover(private val engine: Engine) {
             }
             if (code == Sealdrop.OK) {
                 Engine.log("commit: ${h.files.size} files, $bytes bytes")
-                Jobs.sendSoon(engine.context)
+                engine.later.sendSoon()
                 engine.changed()
             }
             return code
@@ -301,7 +301,7 @@ class Handover(private val engine: Engine) {
         if (allowMobile) {
             engine.db.exec("UPDATE deliveries SET mobile_once = 1 WHERE app = ? AND state BETWEEN 1 AND 3 AND network = 2", app)
         }
-        Jobs.sendNow(engine.context)
+        engine.later.sendNow()
         return Sealdrop.OK
     }
 

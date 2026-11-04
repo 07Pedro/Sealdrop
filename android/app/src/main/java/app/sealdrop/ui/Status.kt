@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -44,7 +45,7 @@ import app.sealdrop.ui.theme.SealdropTheme
 fun StatusScreen(
     state: StatusUi,
     onSettings: () -> Unit = {}, onSendNow: () -> Unit = {}, onEndHold: (HoldUi) -> Unit = {},
-    onSendAgain: (FailedUi) -> Unit = {}, onDiscard: (FailedUi) -> Unit = {},
+    onSendAgain: (FailedUi) -> Unit = {}, onDiscard: (FailedUi) -> Unit = {}, onPairAgain: () -> Unit = {},
     scroll: ScrollState = rememberScrollState(),
 ) {
     Scaffold(topBar = {
@@ -64,7 +65,10 @@ fun StatusScreen(
             Summary(state)
             Spacer(Modifier.height(12.dp))
             for (w in state.warnings) {
-                WarningCard(w, action = if (w.kind == WarningKind.PAIR_AGAIN || w.kind == WarningKind.KEY_REFUSED) "Pair again" else null)
+                WarningCard(
+                    w, action = if (w.kind == WarningKind.PAIR_AGAIN || w.kind == WarningKind.KEY_REFUSED) "Pair again" else null,
+                    onAction = onPairAgain,
+                )
             }
             if (state.holds.isNotEmpty()) Holds(state.holds, onEndHold)
             if (state.failed.isNotEmpty()) Failed(state.failed, onSendAgain, onDiscard)
@@ -248,6 +252,7 @@ fun SettingsScreen(
                 leadingContent = { Icon(painterResource(R.drawable.ic_refresh), null) },
                 trailingContent = { Icon(painterResource(R.drawable.ic_chevron_right), null) },
                 colors = items,
+                modifier = Modifier.clickable(onClick = onPairAgain),
             )
             ListItem(
                 headlineContent = { Text("Unpair this phone", color = MaterialTheme.colorScheme.error) },
@@ -257,6 +262,7 @@ fun SettingsScreen(
                 },
                 leadingContent = { Icon(painterResource(R.drawable.ic_link_off), null, tint = MaterialTheme.colorScheme.error) },
                 colors = items,
+                modifier = Modifier.clickable(onClick = onUnpair),
             )
             HorizontalDivider()
             SectionTitle("About", Modifier.padding(horizontal = 16.dp))

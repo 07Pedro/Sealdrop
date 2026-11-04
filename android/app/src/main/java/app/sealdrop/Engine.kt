@@ -12,6 +12,7 @@ import app.sealdrop.data.Vault
 import app.sealdrop.net.Gate
 import app.sealdrop.net.S3
 import app.sealdrop.send.AckStore
+import app.sealdrop.send.Jobs
 import app.sealdrop.send.S3Ack
 import app.sealdrop.send.S3Up
 import app.sealdrop.send.UpStore
@@ -24,7 +25,10 @@ import java.security.PrivateKey
  * Sealdrop's parts in one place: the database, the vault, the network gate, and the pairing (the current one and a
  * running one). One per process.
  */
-class Engine(val context: Context, val db: Db, val vault: Vault, val clock: () -> Long = System::currentTimeMillis) {
+class Engine(
+    val context: Context, val db: Db, val vault: Vault, val files: File = context.filesDir,
+    val clock: () -> Long = System::currentTimeMillis,
+) {
     /** One pairing: the collector's keys, this phone's keys for it, and the two locations with their keys. */
     class Paired(
         val keyId: ByteArray, val signAlias: String, val fingerprint: String, val label: String, val pairedAt: Long,
@@ -41,7 +45,9 @@ class Engine(val context: Context, val db: Db, val vault: Vault, val clock: () -
     class Opening(val keyId: ByteArray, val private: PrivateKey, val collectorSign: ByteArray)
 
     val gate = Gate { hosts }
-    val files: File get() = context.filesDir
+
+    /** What Sealdrop asks Android to do later (the jobs); the tests note it instead. */
+    var later: Jobs.Later = Jobs.Real(context)
 
     private val _changes = MutableStateFlow(0L)
 
