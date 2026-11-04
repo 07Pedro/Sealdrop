@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="launcher_background">#FF00696B</color>
+    <color name="window_background">#FF0E1515</color>
+    <!-- A dark window until Compose draws, so there's no white flash. -->
+    <style name="Theme.Sealdrop" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
+</resources>

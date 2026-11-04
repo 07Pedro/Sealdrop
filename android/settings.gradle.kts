@@ -26,4 +26,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Sealdrop"
-include(":core")
+include(":core", ":app")

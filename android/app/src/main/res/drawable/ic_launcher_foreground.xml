@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sealdrop's icon: an envelope closed with a wax seal. Drawn for this project (Apache 2.0). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Scaled around the envelope's centre, so it sits well inside the launcher's safe zone. -->
+    <group android:pivotX="54" android:pivotY="57" android:scaleX="0.86" android:scaleY="0.86">
+        <path android:pathData="M33,39h42a5,5 0 0 1 5,5v26a5,5 0 0 1 -5,5h-42a5,5 0 0 1 -5,-5v-26a5,5 0 0 1 5,-5z"
+            android:strokeColor="#FFFFFFFF" android:strokeWidth="4" android:fillColor="#00000000" />
+        <path android:pathData="M30,42L54,60L78,42"
+            android:strokeColor="#FFFFFFFF" android:strokeWidth="4" android:strokeLineJoin="round"
+            android:strokeLineCap="round" android:fillColor="#00000000" />
+        <path android:pathData="M44,60a10,10 0 1 0 20,0a10,10 0 1 0 -20,0z" android:fillColor="#FFFFB74D" />
+        <path android:pathData="M48.5,60a5.5,5.5 0 1 0 11,0a5.5,5.5 0 1 0 -11,0z"
+            android:strokeColor="#FFE65100" android:strokeWidth="1.6" android:fillColor="#00000000" />
+    </group>
+</vector>

@@ -62,7 +62,7 @@ flowchart LR
 | Part | What | State |
 |---|---|---|
 | [docs/PROTOCOL.md](docs/PROTOCOL.md) | the exact format and behaviour of both sides | third version |
-| [android/](android/README.md) | the Sealdrop app (Android 17 or newer, Kotlin) | format core done (`android/core`), the app to come |
+| [android/](android/README.md) | the Sealdrop app (Android 17 or newer, Kotlin) | format core done (`android/core`), the screens drafted (`android/app`), the rest to come |
 | [collector/](collector/README.md) | the collector (Python 3, two dependencies: `cryptography`, and `segno` for the pairing QR code) | format core, the S3 client and the Backblaze B2 setup done; the rest to come |
 | [testvectors/](testvectors/README.md) | made-up keys and sealed files that both sides must handle the same way; both sides pass them, and each opens what the other sealed | done |
 

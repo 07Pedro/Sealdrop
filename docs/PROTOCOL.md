@@ -542,7 +542,9 @@ unpair the stranger on the collector, and pair again.
 ### Unpairing and re-pairing
 
 - **`unpair <fingerprint or label>`** on the collector removes a sender; its files are rejected from then on. The
-  phone's storage keys are removed separately, in the storage provider's console (the collector has no right to).
+  phone's storage keys are removed separately, with the storage account's master key (the collector has no right
+  to): at Backblaze B2 with `python3 -m sealdrop.setup_b2 --keys` ([collector/README.md](../collector/README.md)),
+  elsewhere in the storage provider's console.
 - **Pairing again on the same phone** (new storage keys, a new collector key, or after a fingerprint mismatch):
   Sealdrop makes new keys and adds `"replaces": "<the old key ID, hex>"` to the pairing request. It keeps its old
   opening key and reads receipts with both until everything sent under the old keys is confirmed, or for 60 days.

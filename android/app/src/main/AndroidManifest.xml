@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- No permissions yet: this stage is the screens. INTERNET, ACCESS_NETWORK_STATE and CAMERA come with the real code
+     (docs/PROTOCOL.md §9.5). Nothing of Sealdrop's leaves the phone through Android's backup (§9.4). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="Sealdrop"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Sealdrop">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
