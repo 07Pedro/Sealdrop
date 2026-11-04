@@ -2,9 +2,11 @@
 
 The phone's side of Sealdrop (Android 17 or newer, Kotlin). See [../docs/PROTOCOL.md](../docs/PROTOCOL.md).
 
-**State: the format core is done** (`core/`, an Android library): sealing and opening files, manifests, receipts and
-the pairing checks. **The app's screens are drafted** (`app/`), with made-up data only: nothing behind them works yet.
-Uploads, receipts, the handover between apps and the camera come next.
+**State: working.** The format core (`core/`, an Android library: sealing and opening files, manifests, receipts and
+the pairing checks), and the app behind its screens (`app/`): pairing with the QR code, the hand-over from approved
+apps, sealing, uploading (resumed after a cut), receipts, warnings and holds. Tested against a stand-in collector on
+the device, and end to end with the real collector and a test bucket ([../tools/e2e](../tools/e2e)). Not yet
+installed on a real phone, and no release build yet.
 
 `core` uses only what Android 17 has built in: `android.crypto.hpke` for HPKE, and Conscrypt for X25519, Ed25519,
 ECDSA P-256, ChaCha20-Poly1305 and HMAC. No other library.
@@ -27,10 +29,30 @@ against the same files.
 
 | File | What |
 |---|---|
-| `ui/Model.kt` | what the screens show, and the warnings of §9.3 in plain words |
+| `Engine.kt` | the app's state: the database, the keys, the folders, the storage clients; one sync at a time |
+| `data/Db.kt`, `data/Vault.kt` | SQLite (deliveries, files, uploads, approvals, holds, receipts); the storage keys, sealed with a Keystore key |
+| `net/Gate.kt`, `net/S3.kt` | §8: the only way out (HTTPS to the paired storage's host, nothing else); the S3 requests, Signature Version 4 |
+| `send/Approvals.kt` | §9.1: the apps you approved, by signing certificate, checked on every call; requests from new apps |
+| `send/Handover.kt` | §9.1: the AIDL service other apps bind to: begin, add, commit, status, hold, send now |
+| `send/Outbox.kt` | §9.2: packing deliveries into bundles, sealing, uploading (in 8 MiB parts above 8 MiB, resumed) |
+| `send/Inbox.kt` | §6: reading receipts: stored, duplicates, conflicts, refusals and their strikes, lost deliveries, two collectors |
+| `send/Sync.kt`, `send/Jobs.kt` | §8, §9.2, §9.3: one sync run; the jobs that start them, the pauses after a failure, the receipt rhythm |
+| `send/Holds.kt`, `send/Warnings.kt` | §9.1: holds; the warning bits apps and the main screen read |
+| `send/Stores.kt`, `send/Owner.kt` | `up/` and `ack/`, and what the storage's answers mean; the owner's buttons (send again, Wi-Fi only) |
+| `pair/Pairer.kt`, `pair/Qr.kt` | §7: the pairing request, waiting for the paired receipt, pairing again, unpairing; reading the QR code |
+| `ui/App.kt`, `ui/Snapshot.kt`, `ui/Camera.kt` | the screens' navigation, what they show from the real state, the camera preview |
+| `ui/Model.kt`, `ui/Texts.kt` | what the screens show, the warnings of §9.3 in plain words, times and sizes |
 | `ui/Pairing.kt` | welcome, scanning the QR code, naming the phone, comparing the code (§7), approving an app (§8) |
 | `ui/Status.kt` | the main screen (what was sent and picked up, warnings, holds, refused deliveries) and the settings |
 | `ui/Parts.kt`, `ui/theme/` | shared pieces and the colours |
+
+The interface other apps use is in `api/` (package `app.sealdrop.api`): the AIDL files and the constants of §9.1.
+`demo/` is a made-up sending app (`org.example.sender`, no permissions) that shows how an app hands files over.
+
+**Talks only to the storage.** The app has the INTERNET permission for one host: the paired storage. Three tests
+make sure: `OnlyStorageTest` (on the computer) reads the sources and the manifest (only `net/Gate.kt` opens
+connections, no network libraries, cleartext off, exactly these permissions); `GateTest` (on the device) tries other
+hosts and plain HTTP; and the end-to-end check watches the app's connections while it runs.
 
 The icons are [Material Symbols](https://github.com/google/material-design-icons) (Apache 2.0), fetched as vector
 drawables with `tools/icons.py`. The app icon, an envelope with a wax seal, was drawn for this project.
@@ -68,3 +90,60 @@ adb uninstall app.sealdrop.core.test
   adb pull /sdcard/Android/data/app.sealdrop.core.test/files/cross
   python ../testvectors/check_android_files.py cross
   ```
+
+## Tests of the app
+
+On the computer (Signature Version 4 against AWS's examples, and the "only the storage" checks):
+
+```sh
+./gradlew :app:testDebugUnitTest
+```
+
+On a device or emulator (Android 17), against a stand-in collector in memory: pairing, hand-overs and every refusal
+of §9.1, packing and sealing, uploads cut and resumed, receipts with duplicates, conflicts, refusals and strikes,
+lost deliveries, two collectors, holds, warnings, pairing again and unpairing:
+
+```sh
+./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r -t app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb shell am instrument -w -e class app.sealdrop.send.FlowTest,app.sealdrop.send.GateTest app.sealdrop.test/androidx.test.runner.AndroidJUnitRunner
+adb uninstall app.sealdrop.test
+```
+
+## End to end
+
+[`../tools/e2e/run.py`](../tools/e2e/run.py) runs everything together on an **emulator**: Sealdrop, the made-up
+sending app, the real collector on the computer and a test bucket from `setup_b2 --test`. It pairs with the real
+`pair` command, sends deliveries, and plays the failure cases (tampered files, a cut connection on both sides,
+duplicates, conflicts, junk in the inbox). It clears both apps' data first, so never point it at a phone.
+
+```sh
+./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :demo:assembleDebug :demo:assembleDebugAndroidTest
+python3 ../tools/e2e/run.py --adb "$(command -v adb)"
+```
+
+## Choices the protocol leaves open
+
+- **Storage on the phone:** SQLite for the state; the storage keys and the pairing state in one file, encrypted with
+  an AES key in the Android Keystore. The signing key itself never leaves the Keystore.
+- **Approvals:** an app that was refused, or whose approval was withdrawn, isn't asked about again for 30 days. An
+  app with another signing certificate asks again.
+- **Hand-overs** live in memory. If Android ends Sealdrop's process in the middle of one, it's gone (its files are
+  removed when Sealdrop starts again), and the app starts over with `begin`. Each committed delivery gets its own
+  folder with a random name.
+- **Pauses after a failure** (§8) happen between job runs: a failed run plans the next one after the pause. A new
+  reason to send (a hand-over, "send now", the network coming back) starts the pauses from the beginning.
+- **Holds:** when the last hold is released, a sync starts at once; a hold that just runs out lets the next planned
+  run start as usual.
+- **Receipts:** an entry whose digest differs from the phone's own counts as "the collector reports a problem". A
+  whole upload refused for `unknown-sender` changes nothing on the phone (it happens after pairing again, with an old
+  upload). An upload whose signature fails is matched to nothing, as §6 says, so its deliveries stay "in the inbox"
+  until they're sent again after 60 days.
+- **Pairing:** the QR reader also reads light-on-dark codes, as terminals show them. The pairing request waits in the
+  app's private files until it's uploaded; the code to compare is shown at once. The phone's name is the device
+  model unless the owner changes it.
+- **Unpairing** removes the keys, every unfinished delivery and the uploads, but keeps the approved apps and the
+  deliveries that ended (so `status` still answers for them).
+- **Notifications:** only one, when an app asks to be approved. Sealdrop asks for the permission right after pairing.
+

@@ -456,11 +456,12 @@ class Receipts(Base):
 
     def test_rejections_go_to_every_phone_once(self):
         a, b = self.paired_phone("A"), self.paired_phone("B")
-        a.put(os.urandom(262_376))
+        name = a.put(os.urandom(262_376))
         self.run_once()
         for phone in (a, b):
             (r,) = phone.receipts()
             self.assertEqual([e["reason"] for e in r["rejected"]], ["damaged"])
+            self.assertEqual([e["name"] for e in r["rejected"]], [name.removeprefix(a.up["prefix"])])  # as on the phone
         self.clock.now += DAY + 1
         self.run_once()
         for phone in (a, b):

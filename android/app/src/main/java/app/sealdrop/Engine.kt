@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.File
 import java.security.PrivateKey
+import java.util.concurrent.locks.ReentrantLock
 
 /**
  * Sealdrop's parts in one place: the database, the vault, the network gate, and the pairing (the current one and a
@@ -45,6 +46,9 @@ class Engine(
     class Opening(val keyId: ByteArray, val private: PrivateKey, val collectorSign: ByteArray)
 
     val gate = Gate { hosts }
+
+    /** One sync run or pairing check at a time in this process (a job, the screen, a test). */
+    val lock = ReentrantLock()
 
     /** What Sealdrop asks Android to do later (the jobs); the tests note it instead. */
     var later: Jobs.Later = Jobs.Real(context)

@@ -97,6 +97,13 @@ python3 -m sealdrop.setup_b2 --keys   # lists Sealdrop's keys and deletes the on
   has its free limits as caps: when storage is full, uploads stop until a payment method is added; the daily limits
   (downloads, requests) reset each day. Sealdrop warns in plain words either way (PROTOCOL.md §9.3).
 
+## Choices the protocol leaves open
+
+- **State:** SQLite (`state/state.db`) for what was handled and what each sender was told.
+- **`pair`** asks the owner to confirm that both screens show the same code before it writes the paired receipt.
+- **Status receipts:** once a day for each sender, and at once when the collector's warnings change.
+- **`--clock-check off`:** for a computer whose clock its host keeps (WSL), where `timedatectl` can't tell.
+
 ## Tests
 
 ```sh

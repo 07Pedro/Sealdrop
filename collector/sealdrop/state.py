@@ -88,7 +88,9 @@ class State:
         self.db.execute("INSERT OR IGNORE INTO sealed (sha256, outcome, sender, entry, at) "
                         "VALUES (?, 'stored', ?, ?, ?)", (sha256, sender, text, at))
 
-    def note_rejected(self, name: str, version_id: str, sha256: str | None, size: int, reason: str, at: int) -> None:
+    def note_rejected(self, name: str, version_id: str, sha256: str | None, size: int, reason: str, at: int,
+                      prefix: str) -> None:
+        """Receipts name the upload without the prefix (§6), as the phone knows it."""
         self.db.execute("INSERT OR REPLACE INTO handled (name, version_id, sealed_sha256, size, outcome, reason, at, "
                         "receipt_done) VALUES (?, ?, ?, ?, 'rejected', ?, ?, 1)",
                         (name, version_id, sha256, size, reason, at))
@@ -96,7 +98,7 @@ class State:
             self.db.execute("INSERT OR IGNORE INTO sealed (sha256, outcome, reason, at) VALUES (?, 'rejected', ?, ?)",
                             (sha256, reason, at))
         self.db.execute("INSERT INTO rejections (name, sealed_sha256, size, reason, at) VALUES (?, ?, ?, ?, ?)",
-                        (name, sha256, size, reason, at))
+                        (name.removeprefix(prefix), sha256, size, reason, at))
 
     def note_known(self, name: str, version_id: str, sha256: str, size: int, at: int) -> None:
         """A file handled before under another name or version (step 7): the same result, nothing new to report

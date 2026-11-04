@@ -211,7 +211,7 @@ def _look(root: Root, storage: Storage, state: State, waiting: Pairing, ui: Pair
             ui.say(f"A pairing request was rejected: {r.reason} ({r.detail}). Still waiting.")
             log.warning("a pairing request was rejected: %s", r.reason)
             with state.transaction():
-                state.note_rejected(v.name, v.version_id, _sha(data), v.size, r.reason, now())
+                state.note_rejected(v.name, v.version_id, _sha(data), v.size, r.reason, now(), up.prefix)
             _delete(storage, v)
             continue
         # A valid request: the QR code goes away at once; then the owner compares the codes.
@@ -226,7 +226,7 @@ def _look(root: Root, storage: Storage, state: State, waiting: Pairing, ui: Pair
                    "(setup_b2 --keys deletes the old ones), then pair again.")
             log.warning("pairing not confirmed by the owner (fingerprint %s)", fingerprint)
             with state.transaction():
-                state.note_rejected(v.name, v.version_id, _sha(data), v.size, errors.UNKNOWN_SENDER, now())
+                state.note_rejected(v.name, v.version_id, _sha(data), v.size, errors.UNKNOWN_SENDER, now(), up.prefix)
             _delete(storage, v)
             return None
         sender = Sender(key_id, request.sender_sign, request.sender_open, request.label, now(), fingerprint)

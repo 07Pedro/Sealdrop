@@ -21,6 +21,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
+import kotlin.concurrent.withLock
 
 /**
  * Pairing, the phone's side (PROTOCOL.md §7): checks the offer from the QR code, makes the new keys, shows the
@@ -87,7 +88,9 @@ class Pairer(private val engine: Engine) {
     }
 
     /** Step 5: sends the request if it hasn't gone yet, then looks for the paired receipt. */
-    fun poll(): Poll {
+    fun poll(): Poll = engine.lock.withLock { pollLocked() }
+
+    private fun pollLocked(): Poll {
         val pending = engine.pending() ?: return Poll.NONE
         if (engine.clock() > pending.expires + AFTER_EXPIRY_MS) {
             stop()

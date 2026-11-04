@@ -8,6 +8,7 @@ import app.sealdrop.data.Vault
 import app.sealdrop.net.S3Error
 import app.sealdrop.pair.Pairer
 import java.io.IOException
+import kotlin.concurrent.withLock
 import kotlin.random.Random
 
 /**
@@ -55,7 +56,10 @@ object Sync {
     }
 
     /** [send]: upload and read receipts; otherwise receipts only. [stop]: Android ends the job. */
-    fun run(engine: Engine, send: Boolean, stop: () -> Boolean, attempt: Int = 0, beforePart: (Int) -> Unit = {}): Result {
+    fun run(engine: Engine, send: Boolean, stop: () -> Boolean, attempt: Int = 0, beforePart: (Int) -> Unit = {}): Result =
+        engine.lock.withLock { runLocked(engine, send, stop, attempt, beforePart) }
+
+    private fun runLocked(engine: Engine, send: Boolean, stop: () -> Boolean, attempt: Int, beforePart: (Int) -> Unit): Result {
         Pairer(engine).pollQuietly()
         val paired = engine.paired() ?: return Result()
         if (engine.broken()) return Result()

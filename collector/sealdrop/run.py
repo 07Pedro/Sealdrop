@@ -362,7 +362,7 @@ class Collector:
 
     def _reject(self, v: s3.Version, sha: str | None, r: Rejected, out: Outcome, now: int) -> bool:
         with self.state.transaction():
-            self.state.note_rejected(v.name, v.version_id, sha, v.size, r.reason, now)
+            self.state.note_rejected(v.name, v.version_id, sha, v.size, r.reason, now, self.storage.up.prefix)
         out.rejected += 1
         log.warning("upload %s… (%d bytes) rejected: %s", v.name[-8:], v.size, r.reason)
         return True

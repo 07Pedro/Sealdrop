@@ -44,17 +44,17 @@ class S3(
     override fun toString() = "S3($hostHeader)" // never the key
 
     fun put(bucket: String, name: String, body: ByteArray) {
-        request("PUT", bucket, name, headers = mapOf("Content-Type" to "application/octet-stream"), body = body)
+        request("PUT", bucket, name, headers = BINARY, body = body)
     }
 
     fun createMultipart(bucket: String, name: String): String {
-        val reply = request("POST", bucket, name, listOf("uploads" to ""), mapOf("Content-Type" to "application/octet-stream"))
+        val reply = request("POST", bucket, name, listOf("uploads" to ""), BINARY)
         return Xmls.text(reply, "UploadId") ?: throw S3Error(0, "BadReply", "no UploadId")
     }
 
     fun uploadPart(bucket: String, name: String, uploadId: String, number: Int, body: ByteArray): String {
         var etag: String? = null
-        request("PUT", bucket, name, listOf("partNumber" to "$number", "uploadId" to uploadId), body = body) { etag = it }
+        request("PUT", bucket, name, listOf("partNumber" to "$number", "uploadId" to uploadId), BINARY, body) { etag = it }
         return etag ?: throw S3Error(0, "BadReply", "no ETag")
     }
 
@@ -63,7 +63,7 @@ class S3(
             "<Part><PartNumber>${i + 1}</PartNumber><ETag>${escape(etag)}</ETag></Part>"
         }
         val body = "<CompleteMultipartUpload>$parts</CompleteMultipartUpload>".toByteArray()
-        val reply = request("POST", bucket, name, listOf("uploadId" to uploadId), body = body)
+        val reply = request("POST", bucket, name, listOf("uploadId" to uploadId), XML, body)
         if (Xmls.root(reply) == "Error") throw error(200, reply) // S3 may answer 200 and still have failed
     }
 
@@ -87,6 +87,7 @@ class S3(
         headers: Map<String, String> = emptyMap(), body: ByteArray = ByteArray(0), ok: Set<Int> = setOf(200),
         limit: Int = 1 shl 20, onEtag: ((String?) -> Unit)? = null,
     ): ByteArray {
+        require(method != "PUT" && method != "POST" || "Content-Type" in headers) { "a body without its type" }
         val path = if (name.isEmpty()) "/$bucket" else "/$bucket/$name"
         val bodySha = Encoding.hex(Encoding.sha256(body))
         val signed = SigV4.sign(method, hostHeader, path, query, headers, bodySha, keyId, secret, region, clock())
@@ -141,6 +142,14 @@ class S3(
     }
 
     private fun escape(text: String) = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    private companion object {
+        // Every request with a body names its type, signed: without one, Android's HTTP client sends
+        // `application/x-www-form-urlencoded`, and the storage then reads the body as form fields and the signature
+        // fails (Backblaze: on CompleteMultipartUpload).
+        val BINARY = mapOf("Content-Type" to "application/octet-stream")
+        val XML = mapOf("Content-Type" to "application/xml")
+    }
 }
 
 /** AWS Signature Version 4, exactly as the collector's (`collector/sealdrop/s3.py`), tested with AWS's examples. */

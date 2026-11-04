@@ -265,8 +265,9 @@ class Outbox(
             }
             Health.call(engine) { up.completeMultipart(u.name, id, etags) }
         } catch (e: S3Error) {
-            if (e.code != "NoSuchUpload" || !again) throw e
-            // The provider forgot the upload (its lifecycle rule, for example): start over.
+            if (e.code !in START_OVER || !again) throw e
+            // The provider forgot the upload (its lifecycle rule, for example), or its parts aren't the ones noted
+            // here: start over.
             db.exec("UPDATE uploads SET upload_id = NULL, etags = '' WHERE name = ?", u.name)
             multipart(Upload(u.name, u.size, null, emptyList(), u.mobile), file, again = false)
         }
@@ -274,6 +275,7 @@ class Outbox(
 
     companion object {
         const val PART = 8L shl 20
+        private val START_OVER = setOf("NoSuchUpload", "InvalidPart", "InvalidPartOrder")
         const val MOBILE_BUDGET = 10L shl 20
         const val WIFI_CONTENT = 256L shl 20
         const val RESEND_MS = 60 * 86_400_000L

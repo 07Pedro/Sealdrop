@@ -391,6 +391,20 @@ class FlowTest {
     }
 
     @Test
+    fun partsTheProviderDoesntAcceptStartOver() {
+        pair()
+        handOver("big", mapOf("big.bin" to ByteArray(9 shl 20)))
+        var refused = false
+        up.fault = { if (it == "complete" && !refused) { refused = true; throw S3Error(400, "InvalidPart", "") } }
+        send()
+        assertEquals(Sealdrop.STATE_IN_INBOX, state("big"))
+        assertEquals(2, up.calls.count { it == "create" })
+        collector.run()
+        receipts()
+        assertEquals(Sealdrop.STATE_PICKED_UP, state("big"))
+    }
+
+    @Test
     fun mobileDataTakesOnlyWhatMayUseIt() {
         pair()
         handOver("wifi", mapOf("a.txt" to "w".toByteArray()), Sealdrop.NETWORK_WIFI_ONLY)

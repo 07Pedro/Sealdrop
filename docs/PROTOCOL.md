@@ -602,7 +602,8 @@ unpair the stranger on the collector, and pair again.
 | collector | `PutObject ack/<name>` | receipts key (write, `ack` only) |
 
 - **Resuming:** the phone stores the upload ID and the parts' ETags, so it never needs to list (its key can't). If
-  the provider no longer knows the upload (`NoSuchUpload`, e.g. after the lifecycle rule cancelled it), it starts over.
+  the provider no longer knows the upload (`NoSuchUpload`, e.g. after the lifecycle rule cancelled it), or doesn't
+  accept the noted parts on completing (`InvalidPart`, `InvalidPartOrder`), it starts over, once per sync run.
 - **Retries:**
   - network errors, timeouts, `5xx` and `429`: retried with growing pauses (30 s, then 1, 2, 5 and 15 minutes, then
     hourly), honouring `Retry-After`. Each pause varies by ±20 % at random; the steps count per sync run.
@@ -620,7 +621,8 @@ unpair the stranger on the collector, and pair again.
 ### 9.1 Handing over files (between apps on the phone)
 
 Apps talk to Sealdrop through a bound service with an AIDL interface (action `app.sealdrop.action.DELIVER`, package
-`app.sealdrop`). Nothing goes through shared storage.
+`app.sealdrop`). Nothing goes through shared storage. The AIDL files and the constants below are in Sealdrop's `api` module
+(package `app.sealdrop.api`), for sending apps to build with.
 
 ```aidl
 interface ISealdrop {
