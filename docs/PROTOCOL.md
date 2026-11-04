@@ -359,7 +359,8 @@ collector's signing key, and uploaded to `ack/<random name>`.
     Unknown ones are ignored;
   - `rejected_7d` and `vanished_7d`: counts over the last 7 days (§10).
 - **Status receipt:** at the end of a run, the collector writes a receipt with an empty `stored` for each sender that
-  got no receipt in the last 24 hours. So the phone can show the server's state even when nothing was sent.
+  got no receipt in the last 24 hours, and for every sender at once when the status's `warnings` have changed since
+  its last receipt. So the phone can show the server's state even when nothing was sent.
 - **Paired receipt:** the answer to a pairing request (§7).
 
 **The phone with a receipt:**
@@ -521,12 +522,15 @@ everything holds, checked in this order:
 7. the `mac` is right (compared in constant time).
 
 Then the collector:
-1. stores the sender (key ID, both public keys, label, time) and marks the pairing as used;
-2. clears the QR code and shows the fingerprint;
-3. writes a **paired receipt** (kind 3, sealed for `sender_open`):
+1. marks the pairing as used, clears the QR code and shows the fingerprint;
+2. asks the owner whether the phone shows the same code (the phone's screen says to confirm on the server). If not,
+   it pairs nothing: the request is rejected (`unknown-sender`) and the command ends, telling the owner to replace
+   the phone's storage keys before pairing again;
+3. stores the sender (key ID, both public keys, label, time);
+4. writes a **paired receipt** (kind 3, sealed for `sender_open`):
    `{"v": 1, "type": "paired", "for": "<key ID, hex>", "pairing": "…", "time": …}`;
-4. deletes the request from `up/`;
-5. if the request has `replaces`, offers to retire that old sender, and does it only after the owner confirms.
+5. deletes the request from `up/`;
+6. if the request has `replaces`, offers to retire that old sender, and does it only after the owner confirms.
 
 A request that fails any check is rejected like any other file, and the `pair` command says which check failed
 (without printing the label). The pairing stays open until it expires, so junk can't use it up: only a request made

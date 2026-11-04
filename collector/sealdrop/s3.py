@@ -47,6 +47,7 @@ class Version:
     hidden: bool
     etag: str | None = None
     size: int | None = None
+    modified: int = 0  # LastModified, in milliseconds since 1970
 
 
 @dataclass
@@ -209,7 +210,8 @@ class Client:
                 entries.append(Version(_text(child, "Key"), _text(child, "VersionId"),
                                        _text(child, "IsLatest", "false") == "true", hidden,
                                        None if hidden else _text(child, "ETag", ""),
-                                       None if hidden else int(_text(child, "Size", "0"))))
+                                       None if hidden else int(_text(child, "Size", "0")),
+                                       _millis(_text(child, "LastModified", ""))))
         more = _text(root, "IsTruncated", "false") == "true"
         return entries, ((_text(root, "NextKeyMarker"), _text(root, "NextVersionIdMarker")) if more else None)
 
@@ -236,6 +238,15 @@ class Client:
 
     def abort_multipart_upload(self, bucket: str, name: str, upload_id: str) -> net.Reply:
         return self.request("DELETE", bucket, name, [("uploadId", upload_id)], ok=(200, 204))
+
+
+def _millis(text: str) -> int:
+    """An S3 time (`2026-11-04T13:20:00.000Z`) in milliseconds; 0 if it's missing or unreadable."""
+    try:
+        when = datetime.datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return 0
+    return int(when.timestamp() * 1000)
 
 
 def _escape(text: str) -> str:

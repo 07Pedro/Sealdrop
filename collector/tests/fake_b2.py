@@ -47,6 +47,7 @@ class FileVersion:
     action: str  # upload, hide, start
     data: bytes = b""
     parts: dict[int, bytes] = field(default_factory=dict)
+    modified: int = 0  # milliseconds since 1970
 
     @property
     def etag(self) -> str:
@@ -69,6 +70,11 @@ class FakeB2:
         self.ignore_if_match = False
         self.lifecycle_dropped = False
         self.interrupt_at: str | None = None  # raise KeyboardInterrupt at this S3 operation
+        # For the collector's tests: the time new versions get, and faults to answer with. A fault is
+        # (operation, what): what is an HTTP status (an error answer), "net" (no answer), or ("cut", n) for a GET
+        # that breaks off after n bytes.
+        self.now = 1_790_000_000_000
+        self.faults: list[tuple[str, object]] = []
 
     def _id(self, kind: str) -> str:
         return f"{kind}{next(self.ids):06d}"
@@ -89,11 +95,33 @@ class FakeB2:
         if host in ("api.backblazeb2.com", API):
             return self._native(host, method, target, headers, body)
         assert host == S3_HOST, host
+        raw_path, _, raw_query = target.partition("?")
+        operation = self._operation(method, urllib.parse.unquote(raw_path).lstrip("/").partition("/")[2],
+                                    dict(urllib.parse.parse_qsl(raw_query, keep_blank_values=True)))
+        fault = next((f for f in self.faults if f[0] == operation), None)
+        if fault is not None:
+            self.faults.remove(fault)
+            what = fault[1]
+            if what == "ok":  # this one goes through: the fault after it hits the next request
+                pass
+            elif what == "net":
+                raise net.NetError("fault: no answer")
+            elif isinstance(what, int):
+                code = "ServiceUnavailable" if what >= 500 else "AccessDenied"
+                return self._s3_error(what, code, "fault")
         reply = self._s3(method, target, headers, body or b"")
+        if fault is not None and isinstance(fault[1], tuple) and fault[1][0] == "cut":
+            if out is not None:
+                out.write(reply.body[:fault[1][1]])
+            raise net.NetError("fault: cut off")
         if out is not None and 200 <= reply.status < 300:
             out.write(reply.body)
             reply = net.Reply(reply.status, reply.headers, b"")
         return reply
+
+    def _tick(self) -> int:
+        self.now += 1000
+        return self.now
 
     # --- Backblaze's own interface ------------------------------------------------------------------------------
 
@@ -319,7 +347,7 @@ class FakeB2:
         return versions[-1] if versions else None
 
     def _s3_put(self, bid, name, q, body):
-        f = FileVersion(self._id("4_z"), bid, name, "upload", body)
+        f = FileVersion(self._id("4_z"), bid, name, "upload", body, modified=self._tick())
         self.files.append(f)
         return net.Reply(200, {"etag": f.etag, "x-amz-version-id": f.id}, b"")
 
@@ -345,6 +373,7 @@ class FakeB2:
         if numbers != sorted(f.parts) or any(len(f.parts[n]) < 5_000_000 for n in numbers[:-1]):
             return self._xml(200, "<Error><Code>InvalidPart</Code><Message>parts</Message></Error>")
         f.data, f.action, f.parts = b"".join(f.parts[n] for n in numbers), "upload", {}
+        f.modified = self._tick()
         return self._xml(200, f"<CompleteMultipartUploadResult><Key>{name}</Key><ETag>{f.etag}</ETag>"
                               "</CompleteMultipartUploadResult>")
 
@@ -356,7 +385,7 @@ class FakeB2:
         return net.Reply(204, {}, b"")
 
     def _s3_hide(self, bid, name, q, body):
-        f = FileVersion(self._id("4_z"), bid, name, "hide")
+        f = FileVersion(self._id("4_z"), bid, name, "hide", modified=self._tick())
         self.files.append(f)
         return net.Reply(204, {"x-amz-delete-marker": "true", "x-amz-version-id": f.id}, b"")
 
@@ -397,7 +426,11 @@ class FakeB2:
                                    f"<IsLatest>{latest}</IsLatest></DeleteMarker>")
                 else:
                     entries.append(f"<Version><Key>{name}</Key><VersionId>{f.id}</VersionId>"
-                                   f"<IsLatest>{latest}</IsLatest><ETag>{f.etag}</ETag>"
-                                   f"<Size>{len(f.data)}</Size></Version>")
+                                   f"<IsLatest>{latest}</IsLatest><LastModified>{_iso(f.modified)}</LastModified>"
+                                   f"<ETag>{f.etag}</ETag><Size>{len(f.data)}</Size></Version>")
         return self._xml(200, '<ListVersionsResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
                               f"<IsTruncated>false</IsTruncated>{''.join(entries)}</ListVersionsResult>")
+
+
+def _iso(millis: int) -> str:
+    return datetime.datetime.fromtimestamp(millis / 1000, datetime.UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"

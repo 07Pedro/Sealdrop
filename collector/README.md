@@ -4,8 +4,9 @@ The server side of Sealdrop: a Python 3 program that picks sealed files up from 
 and stores the deliveries (see [../docs/PROTOCOL.md](../docs/PROTOCOL.md) §10). It needs two packages,
 `cryptography` (47 or newer) and `segno`.
 
-**State: the format core, the S3 client and the Backblaze B2 setup are done.** The inbox handling, the store and the
-`pair` command come next.
+**State: working.** The format core, the S3 client, the Backblaze B2 setup, pairing, and the inbox handling with the
+store and the receipts (§7, §10). Tested against a Backblaze in memory, and end to end with the Android app and a
+real test bucket ([../tools/e2e](../tools/e2e)).
 
 | Module | What |
 |---|---|
@@ -19,6 +20,36 @@ and stores the deliveries (see [../docs/PROTOCOL.md](../docs/PROTOCOL.md) §10).
 | `sealdrop/receipts.py`, `sealdrop/pairing.py` | §6, §7: receipt manifests; the offer, the MAC, the fingerprint |
 | `sealdrop/net.py`, `sealdrop/s3.py` | §8: HTTPS as the protocol wants it; the S3 requests, path style, Signature Version 4 |
 | `sealdrop/b2.py`, `sealdrop/setup_b2.py` | §8: setting up an inbox at Backblaze B2, and trying its keys |
+| `sealdrop/root.py`, `sealdrop/state.py` | §10: the data root (settings, keys, senders, instance) and what was handled |
+| `sealdrop/run.py` | §10: one run over the inbox, in the protocol's order; the receipts (§6) |
+| `sealdrop/pair.py` | §7: the `pair` command |
+| `sealdrop/__main__.py` | the commands |
+
+## The commands
+
+Run them as the collector's own user, from this folder (or with the package installed). The data root is `--root`,
+`$SEALDROP_ROOT`, or `/srv/sealdrop`.
+
+```sh
+python3 -m sealdrop init        # the storage locations, the collector's storage keys (asked for, not shown), new keys
+python3 -m sealdrop show-keys   # once: the collector's own keys, for your password manager
+python3 -m sealdrop pair        # in your own terminal: the QR code for the phone, then compare the codes
+python3 -m sealdrop run         # one run over the inbox; a timer starts it every 10 minutes
+python3 -m sealdrop senders     # the paired phones;  unpair <fingerprint or label> removes one
+python3 -m sealdrop status      # what the last run found
+```
+
+- **`init`** asks for the endpoint, region, bucket and the two `collector-…` keys. `--import-keys` takes the
+  collector's own keys from `show-keys` (a new server for the same phones); `--clock-check off` is for a computer
+  whose clock its host keeps (WSL); `--test-keys FILE` takes a test bucket's keys from `setup_b2 --test`.
+- **`pair`** asks for the phone's two keys (`phone-upload`, `phone-receipts`) at prompts that don't show them, shows the
+  QR code (valid once, for 10 minutes), and waits. When the phone's request arrives, the QR code is cleared and both
+  screens show a code: confirm only if they're the same. Nothing from the QR code is written anywhere. Pair from a
+  plain terminal window without session logging, and close it afterwards.
+- **`run`** does nothing while `pair` waits, or (with the default `--clock-check`) until the clock is synchronized.
+  It logs to `log/collector.log` (never paths, keys or content) and writes `state/status.json`.
+- **The store:** `store/<app>/<delivery>/` holds exactly the files an app handed over. A delivery appears all at once
+  or not at all; anything starting with `.` isn't a delivery. Readers only read it.
 
 ## Setting up the inbox at Backblaze B2
 
