@@ -45,7 +45,7 @@ class Account:
 
     @property
     def region(self) -> str:
-        """`eu-central-003` from `https://s3.eu-central-003.backblazeb2.com`."""
+        """`us-west-004` from `https://s3.us-west-004.backblazeb2.com`."""
         host = urllib.parse.urlsplit(self.s3_url).hostname or ""
         return host.split(".")[1] if host.startswith("s3.") and host.count(".") >= 2 else ""
 

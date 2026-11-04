@@ -1,22 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- No permissions yet: this stage is the screens. INTERNET, ACCESS_NETWORK_STATE and CAMERA come with the real code
-     (docs/PROTOCOL.md §9.5). Nothing of Sealdrop's leaves the phone through Android's backup (§9.4). -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<!-- Only what docs/PROTOCOL.md §9.5 allows: the network (to the storage from pairing only), the camera for the QR
+     code, and what jobs and notifications need. No storage, location or contacts permission. Nothing of Sealdrop's
+     leaves the phone through Android's backup (§9.4). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The jobs survive a restart (persisted jobs need this). -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
     <application
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:icon="@mipmap/ic_launcher"
         android:label="Sealdrop"
         android:supportsRtl="true"
         android:theme="@style/Theme.Sealdrop">
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- The handover (§9.1): any app may bind; every call checks the caller's approval. -->
+        <service
+            android:name=".send.HandoverService"
+            android:exported="true"
+            tools:ignore="ExportedService">
+            <intent-filter>
+                <action android:name="app.sealdrop.action.DELIVER" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".send.Jobs"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
     </application>
 </manifest>
