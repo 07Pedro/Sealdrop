@@ -563,7 +563,7 @@ unpair the stranger on the collector, and pair again.
   (§7). Wherever this document says `up/` or `ack/`, it means that location's prefix.
 - **Names:** the location's prefix plus 32 characters from `a–z 2–7` (160 random bits). Nothing else is ever in a
   name, and the phone never reuses one.
-- **What a provider must allow** (the setup script checks it): the phone's upload key can write into `up` but can't
+- **What a provider must allow** (the setup script checks it; for Backblaze B2, `collector/sealdrop/setup_b2.py`): the phone's upload key can write into `up` but can't
   read, list or permanently delete there; the receipts key can only list and read `ack`; the collector's keys are
   limited the same way (table below); and both locations have an expiry rule. With Backblaze B2 that's one bucket
   with two prefixes. A provider that can limit a key to a whole bucket, but not to a prefix, uses two buckets with
