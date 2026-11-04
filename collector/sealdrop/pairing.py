@@ -11,7 +11,7 @@ from .errors import FormatError
 from .hkdf import hkdf_sha256
 
 _LABEL = r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"
-_ENDPOINT = re.compile(rf"https://({_LABEL}(?:\.{_LABEL})*)(?::(\d{{1,5}}))?")
+_ENDPOINT = re.compile(rf"https://({_LABEL}(?:\.{_LABEL})*)(?::([0-9]{{1,5}}))?")
 _REGION = re.compile(r"[a-z0-9-]{1,32}")
 _BUCKET = re.compile(r"[a-z0-9](?:[a-z0-9.-]{1,61})[a-z0-9]")
 _PREFIX = re.compile(r"(?:[a-z0-9_-]+/)*")
@@ -47,9 +47,9 @@ def _check_location(loc, full: bool) -> dict:
     if not isinstance(loc, dict):
         raise FormatError("location")
     for name, pattern in (("endpoint", _ENDPOINT), ("region", _REGION), ("bucket", _BUCKET)):
+        if name not in loc and not full:
+            continue  # left out: the same as in `up` (a null isn't leaving it out)
         value = loc.get(name)
-        if value is None and not full:
-            continue
         if not isinstance(value, str) or not pattern.fullmatch(value):
             raise FormatError(name)
     endpoint = loc.get("endpoint")
@@ -73,8 +73,7 @@ def resolve_storage(storage) -> tuple[dict, dict]:
         raise FormatError("storage")
     up = _check_location(storage.get("up"), full=True)
     ack = _check_location(storage.get("ack"), full=False)
-    ack = {**{k: up[k] for k in ("endpoint", "region", "bucket")},
-           **{k: v for k, v in ack.items() if v is not None}}
+    ack = {**{k: up[k] for k in ("endpoint", "region", "bucket")}, **ack}
     if (up["endpoint"], up["bucket"]) == (ack["endpoint"], ack["bucket"]):
         a, b = up["prefix"], ack["prefix"]
         if not a or not b or a.startswith(b) or b.startswith(a):
@@ -84,7 +83,7 @@ def resolve_storage(storage) -> tuple[dict, dict]:
 
 def check_offer(offer, now_ms: int, allowance_ms: int = 5 * 60 * 1000) -> tuple[dict, dict]:
     """What the phone checks (§7, step 1), and the `pair` command before it shows the code."""
-    if not isinstance(offer, dict) or offer.get("sealdrop") != 1 or offer.get("type") != "pair-offer":
+    if not isinstance(offer, dict) or not encoding.is_one(offer.get("sealdrop")) or offer.get("type") != "pair-offer":
         raise FormatError("sealdrop or type")
     encoding.unb64url(offer.get("pairing"), 16)
     encoding.unb64url(offer.get("collector_open"), 32)

@@ -9,9 +9,10 @@ one with the expected reason.
 | `keys.json` | the test keys: the collector's opening keys (current and retired) and signing key, the sender's two keys, a stranger's |
 | `files/*.sealed` | the sealed files |
 | `cases.json` | one entry per case: the file, who reads it (`collector` in `up/`, `sender` in `ack/`), optional `mutations`, and the expected header, content checksum, per-delivery results or manifest, or the reason it's rejected |
-| `vectors.json` | small vectors: JSON rules, base64url, P-256 and Ed25519 signatures, HKDF (RFC 5869), HPKE (RFC 9180 A.2.1), sizes, names, the pairing MAC and fingerprint, QR offers |
+| `vectors.json` | small vectors: JSON rules, base64url, P-256 and Ed25519 signatures, HKDF (RFC 5869), HPKE (RFC 9180 A.2.1), sizes, names, the pairing MAC and fingerprint, QR offers, and manifests checked on their own (bundles, pairing requests, receipts) |
 | `make_testvectors.py` | makes all of the above |
 | `rfc9180_test_only.py` | a test-only RFC 9180 key schedule (Python's HPKE can't run the RFC's vector) |
+| `check_android_files.py` | the other direction: opens what the Android tests sealed on the emulator ([../android/README.md](../android/README.md)) |
 
 **Mutations** turn one good file into broken copies, so they aren't stored: `flip` (one bit at `offset`), `cut`
 (keep the first `length` bytes), `append` (hex `bytes`), `remove` (`length` bytes at `offset`) and `swap` (the

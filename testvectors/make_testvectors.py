@@ -26,7 +26,8 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey 
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey  # noqa: E402
 
 import rfc9180_test_only as hpke9180  # noqa: E402
-from sealdrop import encoding, keys, manifests, pairing, receipts, sealed, sizes  # noqa: E402
+from sealdrop import encoding, errors, keys, manifests, pairing, receipts, sealed, sizes  # noqa: E402
+from sealdrop.errors import FormatError  # noqa: E402
 from sealdrop.encoding import b64url  # noqa: E402
 from sealdrop.manifests import Delivery, FileEntry  # noqa: E402
 
@@ -549,6 +550,9 @@ def name_cases() -> dict:
             {"paths": ["a", "a/b"], "clash": True},
             {"paths": ["A", "a/b"], "clash": True},
             {"paths": ["a.b", "a/b"], "clash": False},
+            {"paths": ["a", "a.x", "a/b"], "clash": True},
+            {"paths": ["A", "a-b", "a/b/c"], "clash": True},
+            {"paths": ["a-b", "a/b"], "clash": False},
         ],
         "labels": {"good": ["Phone", "Sam's phone 2", "📱 x" , "x" * 40],
                    "bad": ["", "x" * 41, "a\nb", "a​b", "a b", "a b", "‮abc"]},
@@ -603,7 +607,122 @@ def offer_cases() -> list[dict]:
         variant("region-bad", False, up={"region": "eu central"}),
         variant("key-space", False, up={"key": {"id": "a b", "secret": "x"}}),
         variant("up-without-bucket", False, up={"bucket": None}),
+        variant("port-zero", False, up={"endpoint": "https://storage.example:0"}),
+        variant("port-too-big", False, up={"endpoint": "https://storage.example:65536"}),
+        variant("port-other-digits", False, up={"endpoint": "https://storage.example:٨٠"}),
+        {**variant("sealdrop-true", False), "offer": {**base, "sealdrop": True}},
+        {"id": "ack-bucket-null", "valid": False, "offer": {**base, "storage": {
+            **base["storage"], "ack": {**base["storage"]["ack"], "bucket": None}}}},
     ]
+
+
+def manifest_cases() -> dict:
+    """Manifests checked on their own, without sealing (§5, §6, §7). `text` is the manifest (base64url); for a
+    bundle, `n` is the content length its header would give. Every expectation is checked here against the Python
+    code while the vectors are made."""
+    sha = hashlib.sha256(b"x").hexdigest()
+
+    def files(*paths, size=1, checksum=sha):
+        return [{"path": p, "size": size, "sha256": checksum} for p in paths]
+
+    def delivery(delivery_id="d-000001", fs=None, app=APP, **extra):
+        return {"app": app, "delivery": delivery_id, "created": CREATED,
+                "files": files("manifest.json") if fs is None else fs, **extra}
+
+    bundles = []
+
+    def bundle(case_id, deliveries, problems=None, v=1, n_offset=0, **extra):
+        raw = encoding.dumps({"v": v, "type": "bundle", "deliveries": deliveries, **extra})
+        sizes_given = [f["size"] for d in deliveries for f in d["files"] if encoding.is_int(f["size"])]
+        n = 4 + len(raw) + sum(sizes_given) + n_offset
+        try:
+            got = [d.problem for d in manifests.check_bundle(encoding.loads(raw), n, len(raw))]
+        except errors.Rejected as e:
+            got = e.reason
+        expected = "bad-content" if problems is None else problems
+        assert got == expected, (case_id, got)
+        bundles.append({"id": case_id, "text": b64url(raw), "n": n,
+                        **({"reject": "bad-content"} if problems is None else {"problems": problems})})
+
+    bundle("good", [delivery()], [None])
+    bundle("unknown-fields", [delivery(note="x")], [None], extra_field=[1, 2])
+    bundle("several", [delivery("d-1"), delivery("d-2", files("a", "A/b")), delivery("d-3", [])],
+           [None, "bad-name", "no-files"])
+    bundle("v-true", [delivery()], v=True)
+    bundle("v-two", [delivery()], v=2)
+    bundle("created-true", [{**delivery(), "created": True}])
+    bundle("size-false", [delivery(fs=files("a", size=False))])
+    bundle("sizes-dont-add-up", [delivery()], n_offset=1)
+    bundle("no-deliveries", [])
+    bundle("same-delivery-twice", [delivery(), delivery()])
+    bundle("delivery-101-characters", [delivery("x" * 101)])
+    bundle("app-101-characters", [delivery(app="a." * 50 + "a")])
+    # 60 characters, but 120 UTF-16 units: within the 100 characters, so only this delivery is rejected.
+    bundle("delivery-60-emoji", [delivery("\U0001F4F1" * 60)], ["bad-name"])
+    bundle("file-and-folder-with-a-sibling", [delivery(fs=files("a", "a.x", "a/b"))], ["bad-name"])
+    bundle("file-and-folder-in-other-case", [delivery(fs=files("A", "a-b", "a/b"))], ["bad-name"])
+    bundle("no-clash", [delivery(fs=files("a-b", "a/b"))], [None])
+    bundle("checksum-in-capitals", [delivery(fs=files("a", checksum=sha.upper()))], ["bad-file"])
+
+    offer = pairing_offer()
+    pairing_id, code = encoding.unb64url(offer["pairing"]), encoding.unb64url(offer["code"])
+    transcript = pairing.mac_transcript(pairing_id, pub(COLLECTOR_OPEN), COLLECTOR_SIGN.public, SENDER_SIGN.public,
+                                        pub(SENDER_OPEN), None)
+    good_pair = manifests.pair_manifest(pairing_id, SENDER_SIGN.public, pub(SENDER_OPEN), "Phone", None,
+                                        pairing.pair_mac(code, pairing_id, transcript))
+    pairs = []
+
+    def pair(case_id, manifest, check="invalid"):
+        raw = encoding.dumps(manifest)
+        try:
+            got = manifests.check_pair_names(manifests.parse_pair(encoding.loads(raw)))
+        except errors.Rejected:
+            got = "invalid"
+        assert got == check, (case_id, got)
+        pairs.append({"id": case_id, "text": b64url(raw), "valid": check != "invalid",
+                      **({"check": check} if check != "invalid" else {})})
+
+    pair("good", good_pair, None)
+    pair("unknown-field", {**good_pair, "note": "x"}, None)
+    pair("label-with-a-line-break", {**good_pair, "label": "a\nb"}, "label not allowed")
+    pair("v-true", {**good_pair, "v": True})
+    pair("label-a-number", {**good_pair, "label": 1})
+    pair("replaces-in-capitals", {**good_pair, "replaces": seed("old key id").hex().upper()})
+    pair("mac-padded", {**good_pair, "mac": good_pair["mac"] + "="})
+    pair("replaces-null", {**good_pair, "replaces": None})
+
+    own = SENDER_SIGN.key_id
+    good_receipt = receipts.receipt_manifest(
+        own, CREATED + 734000,
+        stored=[{"message": seed("m")[:16].hex(), "sealed_sha256": seed("s").hex(), "received": CREATED,
+                 "deliveries": [{"app": APP, "delivery": "d-1", "digest": seed("d").hex(), "result": "stored",
+                                 "seq": 1}]}],
+        rejected=[], status={"collector": "1.0.0", "instance": seed("instance")[:16].hex(), "seq": 1,
+                             "last_pickup": CREATED, "last_backup": None, "free_bytes": 1, "max_sealed": 2**32,
+                             "warnings": [], "rejected_7d": 0, "rejected_more": 0, "vanished_7d": 0})
+    good_paired = receipts.paired_manifest(own, pairing_id, CREATED)
+    receipt_list = []
+
+    def receipt(case_id, manifest, valid=False):
+        raw = encoding.dumps(manifest)
+        try:
+            receipts.check_receipt(encoding.loads(raw), [own])
+            got = True
+        except FormatError:
+            got = False
+        assert got == valid, (case_id, got)
+        receipt_list.append({"id": case_id, "text": b64url(raw), "valid": valid})
+
+    receipt("receipt", good_receipt, True)
+    receipt("paired", good_paired, True)
+    receipt("v-true", {**good_receipt, "v": True})
+    receipt("time-true", {**good_paired, "time": True})
+    receipt("for-another-phone", {**good_receipt, "for": STRANGER_SIGN.key_id.hex()})
+    receipt("for-in-capitals", {**good_receipt, "for": own.hex().upper()})
+    receipt("type-other", {**good_receipt, "type": "bundle"})
+    receipt("result-unknown", {**good_receipt, "stored": [
+        {**good_receipt["stored"][0], "deliveries": [{**good_receipt["stored"][0]["deliveries"][0], "result": "ok"}]}]})
+    return {"own_key_id": own.hex(), "bundles": bundles, "pairs": pairs, "receipts": receipt_list}
 
 
 def main(out_dir: Path) -> None:
@@ -622,7 +741,7 @@ def main(out_dir: Path) -> None:
     write_json("vectors.json", {
         "note": NOTE, "json": json_rules(), "base64url": base64url_cases(), "signatures": signature_cases(),
         "hkdf": hkdf_cases(), "hpke": hpke_case(), "sizes": size_cases(), "names": name_cases(),
-        "pairing": pairing_cases(), "offers": offer_cases(),
+        "pairing": pairing_cases(), "offers": offer_cases(), "manifests": manifest_cases(),
     })
 
 

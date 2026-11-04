@@ -352,6 +352,7 @@ collector's signing key, and uploaded to `ack/<random name>`.
 - **`status`:**
   - `instance`: the collector's instance ID (§10);
   - `seq`: the highest `seq` stored for this sender (0 if none);
+  - `last_pickup`: when the collector last picked up an upload; `null` until it has picked up any;
   - `last_backup`: from the server's backup job, if there is one (§10); otherwise `null`;
   - `max_sealed`: the collector's limit for one sealed file; the phone packs by it (§9.2);
   - `warnings`: the collector's problems, as strings: `disk-full`, `inbox-flooded`, `conflict` (§10). Unknown ones
@@ -961,6 +962,9 @@ log/         the collector's log (rotated)
   - a manifest with the same delivery twice (the whole file is rejected);
   - a pairing request whose `replaces` is all zeros (rejected);
   - manifests that break §3's JSON rules (a duplicate name, `1.0`, `1e3`, a lone surrogate, padded base64url);
+  - bundle, pairing and receipt manifests checked on their own: `true` where a number belongs, a `null` where none
+    is allowed, a file and a folder of the same name with another path sorting between them, a delivery ID of 60
+    emoji (60 characters but 120 UTF-16 units);
   - signatures with a short `r` and with a high `s` (both accepted), and with `r` = 0 and `s` ≥ n (rejected).
 - **Both sides must** open the good files to exactly the expected content and reject every broken one.
 - **Broken copies** of the big bundle are described in `cases.json` as operations (flip a bit, cut, remove, swap,
@@ -968,7 +972,8 @@ log/         the collector's log (rotated)
 - **The test files are made by the Python side** (`testvectors/make_testvectors.py`). HPKE normally picks a fresh
   one-time key each time; here it comes from the test-only key schedule below, and ECDSA signs deterministically
   (RFC 6979), so making the files again gives the same bytes, and a test checks that. In addition, each side seals
-  and the other opens, in a test that runs the Android code on the emulator.
+  and the other opens, in a test that runs the Android code on the emulator (`CrossFilesTest`, then
+  `testvectors/check_android_files.py`).
 - **RFC 9180's test vector** for this suite (appendix A.2) runs on Android directly. Python's HPKE can't run it (no
   `aad`, only the first message, no fixed one-time key), so `testvectors/` adds a small test-only RFC 9180 key
   schedule built on pyca's X25519, HKDF, HMAC and ChaCha20-Poly1305. It must reproduce A.2, and what it seals must

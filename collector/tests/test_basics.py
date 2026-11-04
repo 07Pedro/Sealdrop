@@ -6,8 +6,8 @@ from cryptography.hazmat.primitives import hpke
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 
 from helpers import VECTOR
-from sealdrop import encoding, hkdf, keys, manifests, sizes
-from sealdrop.errors import FormatError
+from sealdrop import encoding, hkdf, keys, manifests, receipts, sizes
+from sealdrop.errors import FormatError, Rejected
 
 import rfc9180_test_only as rfc9180
 
@@ -157,6 +157,41 @@ class Names(unittest.TestCase):
     def test_clashes(self):
         for case in VECTOR["names"]["clashes"]:
             self.assertEqual(manifests.paths_clash(case["paths"]), case["clash"], case)
+
+
+class Manifests(unittest.TestCase):
+    def test_bundles(self):
+        for case in VECTOR["manifests"]["bundles"]:
+            with self.subTest(case["id"]):
+                raw = encoding.unb64url(case["text"])
+                if "reject" in case:
+                    with self.assertRaises(Rejected) as e:
+                        manifests.check_bundle(encoding.loads(raw), case["n"], len(raw))
+                    self.assertEqual(e.exception.reason, case["reject"])
+                else:
+                    deliveries = manifests.check_bundle(encoding.loads(raw), case["n"], len(raw))
+                    self.assertEqual([d.problem for d in deliveries], case["problems"])
+
+    def test_pairing_requests(self):
+        for case in VECTOR["manifests"]["pairs"]:
+            with self.subTest(case["id"]):
+                manifest = encoding.loads(encoding.unb64url(case["text"]))
+                if case["valid"]:
+                    self.assertEqual(manifests.check_pair_names(manifests.parse_pair(manifest)), case["check"])
+                else:
+                    with self.assertRaises(Rejected):
+                        manifests.parse_pair(manifest)
+
+    def test_receipts(self):
+        own = bytes.fromhex(VECTOR["manifests"]["own_key_id"])
+        for case in VECTOR["manifests"]["receipts"]:
+            with self.subTest(case["id"]):
+                manifest = encoding.loads(encoding.unb64url(case["text"]))
+                if case["valid"]:
+                    receipts.check_receipt(manifest, [own])
+                else:
+                    with self.assertRaises(FormatError):
+                        receipts.check_receipt(manifest, [own])
 
 
 if __name__ == "__main__":

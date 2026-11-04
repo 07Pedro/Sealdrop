@@ -23,13 +23,13 @@ def content_fits(manifest: dict) -> bool:
 
 def check_receipt(manifest, own_key_ids: list[bytes]) -> dict:
     """The receipt's form, as the phone reads it; FormatError if it's wrong or not for this phone."""
-    if not isinstance(manifest, dict) or manifest.get("v") != 1:
+    if not isinstance(manifest, dict) or not encoding.is_one(manifest.get("v")):
         raise FormatError("v")
     if manifest.get("type") not in ("receipt", "paired"):
         raise FormatError("type")
     if encoding.unhex(manifest.get("for"), 32) not in own_key_ids:
         raise FormatError("for")
-    if not isinstance(manifest.get("time"), int):
+    if not encoding.is_int(manifest.get("time")):
         raise FormatError("time")
     if manifest["type"] == "paired":
         encoding.unb64url(manifest.get("pairing"), 16)

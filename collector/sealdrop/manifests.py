@@ -75,12 +75,13 @@ def good_path(path: str) -> bool:
 
 
 def paths_clash(paths: list[str]) -> bool:
-    """Two paths equal after folding, or one a folder of another."""
-    folded = sorted(fold(path) for path in paths)
-    for a, b in zip(folded, folded[1:]):
-        if a == b or b.startswith(a + "/"):
-            return True
-    return False
+    """Two paths equal after folding, or one a folder of another. (Comparing neighbours after sorting isn't enough:
+    `a.x` sorts between `a` and `a/b`.)"""
+    folded = [fold(path) for path in paths]
+    known = set(folded)
+    if len(known) != len(folded):
+        return True
+    return any(c == "/" and path[:i] in known for path in folded for i, c in enumerate(path))
 
 
 def good_label(label) -> bool:
@@ -126,15 +127,11 @@ def _envelope(condition: bool, detail: str) -> None:
         raise Rejected(errors.BAD_CONTENT, detail)
 
 
-def _is_int(value) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool)
-
-
 def check_bundle(manifest, n: int, m: int) -> list[Delivery]:
     """Every check of §5 that the manifest alone allows. Raises Rejected for an envelope failure; a delivery that
     breaks a name rule, has no files or has a malformed checksum comes back with its `problem` set."""
     _envelope(isinstance(manifest, dict), "not an object")
-    _envelope(manifest.get("v") == 1 and manifest.get("type") == "bundle", "v or type")
+    _envelope(encoding.is_one(manifest.get("v")) and manifest.get("type") == "bundle", "v or type")
     items = manifest.get("deliveries")
     _envelope(isinstance(items, list) and 1 <= len(items) <= MAX_DELIVERIES, "deliveries")
     deliveries, seen, total_files, total_bytes = [], set(), 0, 0
@@ -143,14 +140,14 @@ def check_bundle(manifest, n: int, m: int) -> list[Delivery]:
         app, delivery, created, files = (item.get(k) for k in ("app", "delivery", "created", "files"))
         _envelope(isinstance(app, str) and isinstance(delivery, str), "app or delivery")
         _envelope(len(app) <= MAX_NAME and len(delivery) <= MAX_NAME, "app or delivery too long")
-        _envelope(_is_int(created) and isinstance(files, list), "created or files")
+        _envelope(encoding.is_int(created) and isinstance(files, list), "created or files")
         _envelope((app, delivery) not in seen, "the same delivery twice")
         seen.add((app, delivery))
         entries = []
         for f in files:
             _envelope(isinstance(f, dict), "file not an object")
             path, size, sha = f.get("path"), f.get("size"), f.get("sha256")
-            _envelope(isinstance(path, str) and _is_int(size) and isinstance(sha, str), "file fields")
+            _envelope(isinstance(path, str) and encoding.is_int(size) and isinstance(sha, str), "file fields")
             entries.append(FileEntry(path, size, sha))
             total_bytes += size
         total_files += len(entries)
@@ -195,9 +192,8 @@ class PairRequest:
 def parse_pair(manifest) -> PairRequest:
     """§7 step 1: the manifest's form. The label and `replaces` rules are step 6 (`check_pair_names`)."""
     try:
-        if not isinstance(manifest, dict) or manifest.get("v") != 1 or manifest.get("type") != "pair":
+        if not isinstance(manifest, dict) or not encoding.is_one(manifest.get("v")) or manifest.get("type") != "pair":
             raise FormatError("v or type")
-        replaces = manifest.get("replaces")
         label = manifest.get("label")
         if not isinstance(label, str):
             raise FormatError("label")
@@ -206,7 +202,7 @@ def parse_pair(manifest) -> PairRequest:
             sender_sign=encoding.unb64url(manifest.get("sender_sign"), 65),
             sender_open=encoding.unb64url(manifest.get("sender_open"), 32),
             label=label,
-            replaces=None if replaces is None else encoding.unhex(replaces, 32),
+            replaces=encoding.unhex(manifest["replaces"], 32) if "replaces" in manifest else None,  # never null
             mac=encoding.unb64url(manifest.get("mac"), 32),
         )
     except FormatError as e:

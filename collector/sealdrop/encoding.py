@@ -92,6 +92,15 @@ def dumps(value) -> bytes:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8")
 
 
+def is_int(value) -> bool:
+    """A JSON integer. Python counts true and false as 1 and 0, JSON doesn't."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def is_one(value) -> bool:
+    return is_int(value) and value == 1
+
+
 # --- base64url, hex, base32 -------------------------------------------------------------------------------------
 
 def b64url(data: bytes) -> str:
