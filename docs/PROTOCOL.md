@@ -592,7 +592,7 @@ unpair the stranger on the collector, and pair again.
 | phone | `ListObjectsV2` with the `ack` prefix; `GetObject ack/<name>` | receipts key (list + read, `ack` only) |
 | collector | `ListObjectVersions` with the `up` prefix (sees hidden versions too) | pickup key (list + read + delete, `up` only) |
 | collector | `GetObject up/<name>?versionId=…`, with `Range` for the first 152 bytes, the rest, and to resume | pickup key |
-| collector | delete each handled version by its version ID: `DeleteObject …?versionId=…` (at Backblaze, that `deleteFiles` is enough for this is confirmed on the test bucket; if not, B2's own `b2_delete_file_version`) | pickup key |
+| collector | delete each handled version by its version ID: `DeleteObject …?versionId=…` (at Backblaze, `deleteFiles` is enough for this: confirmed on a test bucket) | pickup key |
 | collector | `PutObject ack/<name>` | receipts key (write, `ack` only) |
 
 - **Resuming:** the phone stores the upload ID and the parts' ETags, so it never needs to list (its key can't). If
