@@ -3,14 +3,14 @@
 Run it in your own terminal, with a fresh master application key at hand:
 
     python -m sealdrop.setup_b2 --test    # a test bucket; its keys go into a file, for trying Sealdrop out
-    python -m sealdrop.setup_b2           # the inbox; its keys are shown once, for your password manager
+    python -m sealdrop.setup_b2           # the inbox; its keys are shown once, to keep safe
     python -m sealdrop.setup_b2 --keys    # lists Sealdrop's keys, and deletes the ones you choose (a lost phone)
 
 It makes a private bucket with Backblaze's encryption, no object lock and the expiry rules, and four keys, each
 limited to one folder and one job. Then it tries each key over the S3 interface, with test files it deletes again.
 If a key can do more or less than it should, it deletes the keys and the bucket it made, and says what went wrong.
 The master key is asked for at a prompt that doesn't show it, and is never saved. No key's secret is ever shown
-except the new ones, once; of key IDs only the last four characters, to match them with your password manager.
+except the new ones, once; of key IDs only the last four characters, to match them with your copy.
 """
 
 from __future__ import annotations
@@ -528,7 +528,7 @@ def _undo(account, made: Made, ui: Ui) -> None:
 
 
 def show_keys(ui: Ui, storage: dict) -> None:
-    ui.say("The keys. They're shown only this once: put them into your password manager now.")
+    ui.say("The keys. They're shown only this once: store them safely now.")
     ui.say()
     ui.say(f"  endpoint  {storage['endpoint']}")
     ui.say(f"  region    {storage['region']}")
@@ -585,7 +585,7 @@ def manage_keys(ui: Ui, account_factory=b2.Account) -> int:
     if len(keys) > len(ours):
         ui.say(f"  ({len(keys) - len(ours)} other keys of the account aren't Sealdrop's and aren't shown.)")
     ui.say()
-    ui.say("A lost phone: delete its phone-upload and phone-receipts. The key ID's end is in your password manager.")
+    ui.say("A lost phone: delete its phone-upload and phone-receipts. The key ID's end is in your copy of the keys.")
     answer = ui.ask("Numbers of the keys to delete (for example: 1 2), or just Enter to delete none: ").strip()
     if not answer:
         ui.say("Nothing deleted.")

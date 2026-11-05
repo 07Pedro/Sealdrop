@@ -32,7 +32,7 @@ Run them as the collector's own user, from this folder (or with the package inst
 
 ```sh
 python3 -m sealdrop init        # the storage locations, the collector's storage keys (asked for, not shown), new keys
-python3 -m sealdrop show-keys   # once: the collector's own keys, for your password manager
+python3 -m sealdrop show-keys   # once: the collector's own keys, to keep safe
 python3 -m sealdrop pair        # in your own terminal: the QR code for the phone, then compare the codes
 python3 -m sealdrop run         # one run over the inbox; a timer starts it every 10 minutes
 python3 -m sealdrop senders     # the paired phones;  unpair <fingerprint or label> removes one
@@ -59,7 +59,7 @@ key from Backblaze's web console (Application Keys). Run it **in your own termin
 
 ```sh
 python3 -m sealdrop.setup_b2 --test   # a test bucket first: its keys go into ~/.config/sealdrop-test/storage.json
-python3 -m sealdrop.setup_b2          # the inbox: its keys are shown once, for your password manager
+python3 -m sealdrop.setup_b2          # the inbox: its keys are shown once, to keep safe
 python3 -m sealdrop.setup_b2 --keys   # lists Sealdrop's keys and deletes the ones you pick (a lost phone)
 ```
 
@@ -85,10 +85,10 @@ python3 -m sealdrop.setup_b2 --keys   # lists Sealdrop's keys and deletes the on
 - **The master key** is asked for at a prompt that doesn't show it, and is never saved. Afterwards, make a new master
   key in the console without saving it, so the one you pasted stops working.
 - **The keys:** with `--test`, they go into a file readable by you only, and aren't shown. Without it, they're shown
-  once; press Enter when they're in your password manager, and the screen and its scrollback are cleared. A terminal
+  once; press Enter when they're stored safely, and the screen and its scrollback are cleared. A terminal
   that keeps its own history (tmux, screen, session logging) keeps them too.
 - **`--keys`** lists the account's Sealdrop keys (by their names, the test ones too): bucket, folder, permissions and
-  the last four characters of the key ID, to match them with your password manager. Never a secret. You type the
+  the last four characters of the key ID, to match them with your copy. Never a secret. You type the
   numbers of the keys to delete, confirm, and it checks that they're gone. Use it for a lost phone (its
   `phone-upload` and `phone-receipts`) or a lost server (its `collector-…` keys), and then replace the master key.
   Backblaze's web console doesn't always list keys made through its interface, so this is the reliable way.

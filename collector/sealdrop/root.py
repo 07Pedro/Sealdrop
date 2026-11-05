@@ -109,8 +109,8 @@ class Root:
 
     def create(self, up: Location, ack: Location, pickup: tuple[str, str], receipts: tuple[str, str],
                settings: dict | None = None, opening: bytes | None = None, signing: bytes | None = None) -> None:
-        """A new data root: the folders, the settings and the collector's keys (new ones, or the owner's own from the
-        password manager when moving to a new server)."""
+        """A new data root: the folders, the settings and the collector's keys (new ones, or the owner's own from their
+        safe copy when moving to a new server)."""
         if (self / SETTINGS).exists():
             raise RootError(f"{self.path} is already set up")
         self.path.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -159,7 +159,7 @@ class Root:
         return keys.x25519_public_bytes(self.opening_keys()[0].public_key()), self.signer().public
 
     def private_keys(self) -> tuple[bytes, bytes]:
-        """For the owner's password manager (`show-keys`), and nothing else."""
+        """For the owner's safe copy (`show-keys`), and nothing else."""
         open_key = self.opening_keys()[0]
         raw = encoding.unb64url((self / "keys/sign.key").read_text().strip(), 32)
         return keys.x25519_private_bytes(open_key), raw

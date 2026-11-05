@@ -71,8 +71,8 @@ sequenceDiagram
 
 | Key | Algorithm | Private part lives | Public part known to |
 |---|---|---|---|
-| Collector opening key | X25519 | collector, plus the owner's password manager | sender (from the QR code) |
-| Collector signing key | Ed25519 | collector, plus the owner's password manager | sender (from the QR code) |
+| Collector opening key | X25519 | collector, plus the owner's safe copy | sender (from the QR code) |
+| Collector signing key | Ed25519 | collector, plus the owner's safe copy | sender (from the QR code) |
 | Sender signing key | ECDSA P-256 with SHA-256 | Android Keystore: StrongBox (the security chip) if the phone has one, otherwise the TEE. Can't be exported. | collector (from pairing) |
 | Sender opening key | X25519 | Sealdrop's private storage, encrypted with a Keystore AES-256-GCM key (StrongBox if available) | collector (from pairing) |
 | File key `K` | 32 random bytes | inside the sealed header of one file | nobody else |
@@ -416,7 +416,7 @@ collector's signing key, and uploaded to `ack/<random name>`.
 ### The QR code (shown by the collector)
 
 The owner runs the collector's `pair` command in their own terminal. It asks for the phone's two storage keys (pasted
-from the password manager; the collector doesn't keep them) and shows a QR code, valid once and for 10 minutes, with
+from the owner's safe copy; the collector doesn't keep them) and shows a QR code, valid once and for 10 minutes, with
 this UTF-8 JSON:
 
 ```json

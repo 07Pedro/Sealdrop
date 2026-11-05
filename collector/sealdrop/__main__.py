@@ -6,7 +6,7 @@
     senders     the paired phones
     unpair      remove a phone: `unpair <fingerprint or label>`
     status      what the last run found
-    show-keys   the collector's private keys, for your password manager
+    show-keys   the collector's private keys, to keep safe
 
 The data root is `--root`, or `$SEALDROP_ROOT`, or /srv/sealdrop.
 """
@@ -62,18 +62,18 @@ def cmd_init(root: Root, args, ui: PairUi) -> int:
         endpoint = args.endpoint or ui.ask("Storage endpoint (e.g. https://s3.us-west-004.backblazeb2.com): ")
         region = args.region or ui.ask("Region (e.g. us-west-004): ")
         bucket = args.bucket or ui.ask("Inbox bucket name: ")
-        ui.say("Paste the collector's two storage keys from your password manager. They aren't shown.")
+        ui.say("Paste the collector's two storage keys from where you keep your keys. They aren't shown.")
         pickup = (ui.secret("collector-pickup key ID: ").strip(), ui.secret("collector-pickup key: ").strip())
         receipts = (ui.secret("collector-receipts key ID: ").strip(), ui.secret("collector-receipts key: ").strip())
     opening = signing = None
     if args.import_keys:
-        ui.say("Paste the collector's own keys from your password manager (from `show-keys` on the old server).")
+        ui.say("Paste the collector's own keys from where you keep your keys (from `show-keys` on the old server).")
         opening = encoding.unb64url(ui.secret("opening key: ").strip(), 32)
         signing = encoding.unb64url(ui.secret("signing key: ").strip(), 32)
     up = Location(endpoint.strip(), region.strip(), bucket.strip(), args.up_prefix)
     ack = Location(endpoint.strip(), region.strip(), bucket.strip(), args.ack_prefix)
     root.create(up, ack, pickup, receipts, settings, opening, signing)
-    ui.say(f"Set up {root.path}. Next: `show-keys` once, for your password manager; then `pair`.")
+    ui.say(f"Set up {root.path}. Next: `show-keys` once, to keep the keys safe; then `pair`.")
     return 0
 
 
@@ -136,7 +136,7 @@ def cmd_show_keys(root: Root, args, ui: PairUi) -> int:
         ui.say("show-keys prints only to a terminal.")
         return 2
     opening, signing = root.private_keys()
-    ui.say("The collector's own keys. Put them into your password manager; with them, a new server can open what "
+    ui.say("The collector's own keys. Store them safely; with them, a new server can open what "
            "the phones sealed and sign receipts they accept (`init --import-keys`).")
     ui.say(f"  opening key  {encoding.b64url(opening)}")
     ui.say(f"  signing key  {encoding.b64url(signing)}")

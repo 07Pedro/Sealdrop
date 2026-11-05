@@ -146,7 +146,7 @@ def pair(root: Root, ui: PairUi, *, storage: Storage | None = None, now: Callabl
     with Lock(root / "state/lock") as locked:
         if not locked:
             raise PairError("a collector run is going on right now; try again in a minute")
-        ui.say("Paste the phone's two storage keys from your password manager (phone-upload and phone-receipts). "
+        ui.say("Paste the phone's two storage keys from where you keep your keys (phone-upload and phone-receipts). "
                "They aren't shown, and the collector doesn't keep them.")
         upload = (check_key_text(ui.secret("phone-upload key ID: "), "key ID"),
                   check_key_text(ui.secret("phone-upload key: "), "key"))
