@@ -6,7 +6,8 @@ The phone's side of Sealdrop (Android 17 or newer, Kotlin). See [../docs/PROTOCO
 the pairing checks), and the app behind its screens (`app/`): pairing with the QR code, the hand-over from approved
 apps, sealing, uploading (resumed after a cut), receipts, warnings and holds. Tested against a stand-in collector on
 the device, and end to end with the real collector and a test bucket ([../tools/e2e](../tools/e2e)). Release builds
-are signed with your own key ([below](#release-builds)). Not yet tried on a real phone.
+are signed with your own key ([below](#release-builds)). Installed on a phone with Android 17; not yet paired with a
+real collector.
 
 `core` uses only what Android 17 has built in: `android.crypto.hpke` for HPKE, and Conscrypt for X25519, Ed25519,
 ECDSA P-256, ChaCha20-Poly1305 and HMAC. No other library.
