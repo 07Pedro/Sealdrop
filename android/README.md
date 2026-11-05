@@ -5,8 +5,8 @@ The phone's side of Sealdrop (Android 17 or newer, Kotlin). See [../docs/PROTOCO
 **State: working.** The format core (`core/`, an Android library: sealing and opening files, manifests, receipts and
 the pairing checks), and the app behind its screens (`app/`): pairing with the QR code, the hand-over from approved
 apps, sealing, uploading (resumed after a cut), receipts, warnings and holds. Tested against a stand-in collector on
-the device, and end to end with the real collector and a test bucket ([../tools/e2e](../tools/e2e)). Not yet
-installed on a real phone, and no release build yet.
+the device, and end to end with the real collector and a test bucket ([../tools/e2e](../tools/e2e)). Release builds
+are signed with your own key ([below](#release-builds)). Not yet tried on a real phone.
 
 `core` uses only what Android 17 has built in: `android.crypto.hpke` for HPKE, and Conscrypt for X25519, Ed25519,
 ECDSA P-256, ChaCha20-Poly1305 and HMAC. No other library.
@@ -122,6 +122,39 @@ duplicates, conflicts, junk in the inbox). It clears both apps' data first, so n
 ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :demo:assembleDebug :demo:assembleDebugAndroidTest
 python3 ../tools/e2e/run.py --adb "$(command -v adb)"
 ```
+
+## Release builds
+
+Android installs an update only over an app signed with the same key, so a phone's Sealdrop is signed with a key of
+your own, kept outside this repository. Debug builds use Android's debug key (for emulators and the tests), so they
+never install over a release.
+
+1. Make the key, in a folder outside the repository (`keytool` comes with Android Studio's JDK). It asks for a
+   password twice:
+
+   ```sh
+   keytool -genkeypair -keystore sealdrop-release.jks -alias sealdrop -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=Sealdrop"
+   ```
+
+2. Next to it, a `keystore.properties` (`storeFile` is relative to this file; letters and digits in the password
+   keep the file simple):
+
+   ```properties
+   storeFile=sealdrop-release.jks
+   storePassword=...
+   keyAlias=sealdrop
+   keyPassword=...
+   ```
+
+3. In `android/local.properties` (never in git), the path to that file: `sealdrop.signing=/path/to/keystore.properties`.
+   If the line names a missing file, the build stops; without the line, the release is left unsigned.
+4. `./gradlew :app:assembleRelease` writes `app/build/outputs/apk/release/app-release.apk`. Its certificate:
+   `apksigner verify --print-certs app-release.apk`.
+
+Back up both files. If the key is lost, Sealdrop can only be uninstalled and installed again, which deletes its keys
+and queue: the phone then pairs again, and apps hand over again what wasn't picked up.
+
+The release isn't shrunk (no R8), so it runs the same code the tests ran.
 
 ## Choices the protocol leaves open
 

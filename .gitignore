@@ -5,6 +5,7 @@ keystore/
 *.p12
 *.pem
 *.key
+keystore.properties
 .env
 *.env
 local.properties
