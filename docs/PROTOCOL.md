@@ -752,7 +752,10 @@ parcelable SenderInfo { boolean paired; String fingerprint; long lastPickup; lon
 - **After the upload:** the deliveries are "in the inbox", and Sealdrop looks for the receipt.
 - **No receipt after 60 days:** sealed again (a new message ID) and uploaded again, and again every 60 days, packed by
   the normal rules. The collector recognises deliveries it already has (§10).
-- **The first run after a hold ends** is started as an expedited job, so Android's power saving doesn't delay it.
+- **The first run after a hold ends, and a run asked for** (`sendNow`, *Send now* on Sealdrop's screen, the end of
+  pairing, sending resumed) are started as expedited jobs, so Android's power saving doesn't delay them. An ordinary
+  job (30 seconds after a `commit`) can be held back by Android for about half an hour when Sealdrop hasn't been used
+  lately, to batch it with other apps' jobs.
 
 ### 9.3 Receipts and warnings
 

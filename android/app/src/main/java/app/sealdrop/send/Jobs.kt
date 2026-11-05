@@ -103,12 +103,16 @@ class Jobs : JobService() {
         /** §9.2: a run starts 30 seconds after the last commit, so files handed over one after another travel together. */
         fun sendSoon(context: Context) = schedule(context, SEND, COMMIT_PAUSE_MS)
 
-        fun sendNow(context: Context) = schedule(context, SEND, 0)
+        /** A run asked for (`sendNow`, Send now, pairing done, sending resumed): expedited, like [afterHold]. */
+        fun sendNow(context: Context) = expedited(context)
 
         /** The first run after a hold ends is expedited, so Android's power saving doesn't delay it. */
-        fun afterHold(context: Context) {
+        fun afterHold(context: Context) = expedited(context)
+
+        /** Android may hold back an ordinary job of an app not used lately (for about half an hour, to batch them). */
+        private fun expedited(context: Context) {
             val job = builder(context, SEND).setExpedited(true).build()
-            if (scheduler(context).schedule(job) != JobScheduler.RESULT_SUCCESS) sendNow(context)
+            if (scheduler(context).schedule(job) != JobScheduler.RESULT_SUCCESS) schedule(context, SEND, 0)
         }
 
         fun pairing(context: Context) = schedule(context, PAIR, Pairer.POLL_MS)

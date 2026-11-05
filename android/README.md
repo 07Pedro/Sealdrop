@@ -157,6 +157,11 @@ and queue: the phone then pairs again, and apps hand over again what wasn't pick
 
 The release isn't shrunk (no R8), so it runs the same code the tests ran.
 
+**An app that pins your certificate** (it hands files only to your own build) can't be tested end to end against a
+debug build signed with Android's debug key. `./gradlew -Psealdrop.ownerDebug :app:assembleDebug
+:app:assembleDebugAndroidTest` signs the debug build and its test APK with your key instead, so the harness's steps
+(pairing from a QR image, approving) still run. Only for an emulator: a phone gets release builds.
+
 ## Choices the protocol leaves open
 
 - **Storage on the phone:** SQLite for the state; the storage keys and the pairing state in one file, encrypted with
@@ -170,6 +175,10 @@ The release isn't shrunk (no R8), so it runs the same code the tests ran.
   reason to send (a hand-over, "send now", the network coming back) starts the pauses from the beginning.
 - **Holds:** when the last hold is released, a sync starts at once; a hold that just runs out lets the next planned
   run start as usual.
+- **Jobs:** a run someone asked for (`sendNow`, Send now, the end of pairing, sending resumed) and the first run after
+  a hold are expedited jobs. The run 30 seconds after a `commit` is an ordinary job, which Android may hold back for
+  about half an hour when Sealdrop hasn't been used lately (it batches such jobs), so an app's "send now" is the way
+  to send at once.
 - **Receipts:** an entry whose digest differs from the phone's own counts as "the collector reports a problem". A
   whole upload refused for `unknown-sender` changes nothing on the phone (it happens after pairing again, with an old
   upload). An upload whose signature fails is matched to nothing, as §6 says, so its deliveries stay "in the inbox"

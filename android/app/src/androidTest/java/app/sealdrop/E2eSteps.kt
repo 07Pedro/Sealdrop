@@ -9,6 +9,7 @@ import app.sealdrop.net.Gate
 import app.sealdrop.pair.Pairer
 import app.sealdrop.pair.Qr
 import app.sealdrop.send.Approvals
+import app.sealdrop.send.Holds
 import app.sealdrop.send.Inbox
 import app.sealdrop.send.Sync
 import app.sealdrop.send.Warnings
@@ -99,7 +100,7 @@ class E2eSteps {
         report("receipts" to handled)
     }
 
-    /** Every delivery's state, the warnings, and what's still pending. */
+    /** Every delivery's state, the warnings, what's still pending, and which apps hold the sending. */
     @Test
     fun show() {
         e2e()
@@ -113,6 +114,7 @@ class E2eSteps {
             "uploads" to db.long("SELECT COUNT(*) FROM uploads WHERE state = 0"),
             "copies" to (File(context.filesDir, "copies").list()?.size ?: 0),
             "outbox" to (File(context.filesDir, "outbox").list()?.size ?: 0),
+            "holds" to Holds.active(engine).joinToString(",") { it.app }.ifEmpty { "-" },
         )
     }
 

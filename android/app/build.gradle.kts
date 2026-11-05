@@ -9,7 +9,8 @@ plugins {
 // The Sealdrop app (docs/PROTOCOL.md §9). Release builds are signed with the owner's own key, which is never in this
 // repository: `sealdrop.signing` in local.properties names a keystore.properties file elsewhere (storeFile, relative to
 // that file, storePassword, keyAlias, keyPassword). Without that line the release is left unsigned. Debug builds keep
-// the debug key, for emulators and tests.
+// the debug key, for emulators and tests; `-Psealdrop.ownerDebug` signs them (and the test APK) with the owner's key
+// instead, for an end-to-end check on an emulator with an app that only hands files to the owner's own build.
 fun Properties.loadFrom(file: File) = apply { file.inputStream().use { load(it) } }
 
 val signing: Properties? = rootProject.file("local.properties").takeIf { it.isFile }
@@ -43,6 +44,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            if (providers.gradleProperty("sealdrop.ownerDebug").isPresent) {
+                signingConfig = checkNotNull(signingConfigs.findByName("owner")) { "-Psealdrop.ownerDebug needs sealdrop.signing" }
+            }
+        }
         release {
             // Not shrunk: the release runs the same code the tests ran.
             isMinifyEnabled = false
