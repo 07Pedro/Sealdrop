@@ -1,0 +1,5 @@
+#!/bin/sh
+# The collector's commands on a server, run as the collector's own user so its data root stays its own:
+# `sealdrop status`, `sealdrop pair` … (`sealdrop --help`). Installed as /usr/local/bin/sealdrop by install.sh.
+cd / || exit 1
+exec sudo -u sealdrop /opt/sealdrop/venv/bin/python -I -m sealdrop "$@"

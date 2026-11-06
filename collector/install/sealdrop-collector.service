@@ -1,0 +1,53 @@
+# One run of the collector over the inbox (PROTOCOL.md §10), started every 10 minutes by sealdrop-collector.timer.
+# It runs as its own user, may write only to its data root, and gets nothing else it doesn't need.
+#
+# Another data root: `systemctl edit sealdrop-collector.service`, then set the same path in
+# Environment=SEALDROP_ROOT=, ReadWritePaths= and RequiresMountsFor=.
+
+[Unit]
+Description=Sealdrop collector: one run over the inbox
+Wants=network-online.target
+After=network-online.target
+# Waits for the disk that holds the data root; if it isn't mounted, nothing runs (no writing to the disk below).
+RequiresMountsFor=/srv/sealdrop
+
+[Service]
+Type=oneshot
+User=sealdrop
+Group=sealdrop
+Environment=SEALDROP_ROOT=/srv/sealdrop
+ExecStart=/opt/sealdrop/venv/bin/python -I -m sealdrop run
+UMask=0077
+Nice=10
+IOSchedulingClass=idle
+# Large files over a slow line take a while. A run that hangs is stopped; the next one carries on (§10).
+TimeoutStartSec=6h
+# A run needs about 30-50 MB. (Ignored where the kernel's memory controller is switched off.)
+MemoryMax=256M
+
+# The sandbox
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ReadWritePaths=/srv/sealdrop
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+# IP for the storage, and a local socket for `timedatectl` (the clock check).
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources

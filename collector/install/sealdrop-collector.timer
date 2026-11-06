@@ -1,0 +1,10 @@
+# Starts sealdrop-collector.service every 10 minutes (PROTOCOL.md §10). A run that's still busy isn't started again.
+
+[Unit]
+Description=Sealdrop collector: a run every 10 minutes
+
+[Timer]
+OnCalendar=*:0/10
+
+[Install]
+WantedBy=timers.target

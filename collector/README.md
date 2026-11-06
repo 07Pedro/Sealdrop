@@ -6,7 +6,7 @@ and stores the deliveries (see [../docs/PROTOCOL.md](../docs/PROTOCOL.md) §10).
 
 **State: working.** The format core, the S3 client, the Backblaze B2 setup, pairing, and the inbox handling with the
 store and the receipts (§7, §10). Tested against a Backblaze in memory, and end to end with the Android app and a
-real test bucket ([../tools/e2e](../tools/e2e)).
+real test bucket ([../tools/e2e](../tools/e2e)). **On a server** (such as a Raspberry Pi): [INSTALL.md](INSTALL.md).
 
 | Module | What |
 |---|---|
@@ -24,10 +24,12 @@ real test bucket ([../tools/e2e](../tools/e2e)).
 | `sealdrop/run.py` | §10: one run over the inbox, in the protocol's order; the receipts (§6) |
 | `sealdrop/pair.py` | §7: the `pair` command |
 | `sealdrop/__main__.py` | the commands |
+| `install/` | for a server: the install script, the locked packages, the systemd service and timer, the `sealdrop` command ([INSTALL.md](INSTALL.md)) |
 
 ## The commands
 
-Run them as the collector's own user, from this folder (or with the package installed). The data root is `--root`,
+Run them as the collector's own user, from this folder (or with the package installed). On a server installed with
+[INSTALL.md](INSTALL.md), the timer starts `run`, and the `sealdrop` command runs the others as the collector's user. The data root is `--root`,
 `$SEALDROP_ROOT`, or `/srv/sealdrop`.
 
 ```sh
