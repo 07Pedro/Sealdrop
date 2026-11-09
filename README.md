@@ -62,8 +62,8 @@ flowchart LR
 | Part | What | State |
 |---|---|---|
 | [docs/PROTOCOL.md](docs/PROTOCOL.md) | the exact format and behaviour of both sides | third version |
-| [android/](android/README.md) | the Sealdrop app (Android 17 or newer, Kotlin) | working: pairing, hand-overs from approved apps, sealing, uploads, receipts, warnings, holds; not yet on a real phone |
-| [collector/](collector/README.md) | the collector (Python 3, two dependencies: `cryptography`, and `segno` for the pairing QR code) | working: the Backblaze B2 setup, pairing, the inbox runs, the store and the receipts; [installs on a server](collector/INSTALL.md) with systemd (not yet tried on a Pi) |
+| [android/](android/README.md) | the Sealdrop app (Android 17 or newer, Kotlin) | working: pairing, hand-overs from approved apps, sealing, uploads, receipts, warnings, holds; in use on a phone |
+| [collector/](collector/README.md) | the collector (Python 3, two dependencies: `cryptography`, and `segno` for the pairing QR code) | working: the Backblaze B2 setup, pairing, the inbox runs, the store and the receipts; [installs on a server](collector/INSTALL.md) with systemd (in use on a Raspberry Pi 3B+) |
 | [testvectors/](testvectors/README.md) | made-up keys and sealed files that both sides must handle the same way; both sides pass them, and each opens what the other sealed | done |
 | [tools/e2e/](tools/e2e/run.py) | the end-to-end check: the app on an emulator, the collector, a test bucket, and the failure cases | done |
 

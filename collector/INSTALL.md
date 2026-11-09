@@ -4,7 +4,8 @@ For a small Linux server with systemd that's always on, such as a **Raspberry Pi
 of RAM is plenty). The collector runs every 10 minutes from a systemd timer, as its own user, in a sandbox.
 
 **State:** the packaging is tested in WSL (Python 3.11 and the locked packages; the service's sandbox with a real run
-against a test bucket, and all the collector's tests inside it), not yet on a Pi.
+against a test bucket, and all the collector's tests inside it), and in use on a Raspberry Pi 3B+ with 64-bit Raspberry
+Pi OS.
 
 ## What you need
 
