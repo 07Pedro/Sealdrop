@@ -63,7 +63,7 @@ root: the files in the data root would then belong to root, and the service coul
 ## Day to day
 
 ```sh
-sealdrop status                                  # what the last run found
+sealdrop status                                  # what the last run found; --json for a dashboard
 systemctl list-timers sealdrop-collector.timer   # when the next run is
 journalctl -u sealdrop-collector                 # the runs, and why one failed
 sudo tail /srv/sealdrop/log/collector.log        # the collector's own log

@@ -99,6 +99,8 @@ class Outcome:
     vanished: int = 0
     stopped: str | None = None
     warnings: list[str] = field(default_factory=list)
+    left: int | None = None  # uploads still in the inbox after the run; None if the listing failed
+    oldest_left: int | None = None  # the oldest of them (LastModified)
 
 
 @dataclass
@@ -175,7 +177,10 @@ class Collector:
         flooded = not end_reached or self.limited
         state.put("flooded", flooded)
         self._write_receipts(out)
-        self._delete(items, strays, out)
+        deleted = self._delete(items, strays, out)
+        left = [i.version for i in items if (i.version.name, i.version.version_id) not in deleted]
+        out.left = len(left)
+        out.oldest_left = min((v.modified for v in left if v.modified), default=None)
         # The listing continues after this run's part only if all of it was handled (step 1).
         if left_over == 0 and not out.stopped:
             state.put("marker", None if end_reached else after)
@@ -552,8 +557,10 @@ class Collector:
 
     # --- step 12: delete --------------------------------------------------------------------------------------------
 
-    def _delete(self, items: list[_Listed], strays: list[s3.Version], out: Outcome) -> None:
+    def _delete(self, items: list[_Listed], strays: list[s3.Version], out: Outcome) -> set[tuple[str, str]]:
+        """Deletes what was handled; returns the (name, version ID) pairs that are gone."""
         waiting = self.state.waiting_for_receipt()
+        gone: set[tuple[str, str]] = set()
         doomed = list(strays)
         for item in items:
             v = item.version
@@ -571,12 +578,14 @@ class Collector:
             try:
                 self.storage.retrying(attempt)
                 out.deleted += 1
+                gone.add((v.name, v.version_id))
             except Stop as e:
                 out.stopped = out.stopped or e.why
                 log.warning("couldn't delete a handled upload (it's deleted next run): %s", e)
-                return
+                return gone
             except s3.S3Error as e:
                 log.warning("couldn't delete upload %s…: %s", v.name[-8:], e)
+        return gone
 
     # --- status.json ------------------------------------------------------------------------------------------------
 
@@ -587,9 +596,22 @@ class Collector:
                   "storage": {"key-refused": "storage key refused", "storage-cap": "storage cap reached",
                               "network": "storage didn't answer"}.get(out.stopped or ""),
                   "run": {k: getattr(out, k) for k in ("listed", "downloaded", "stored", "duplicates", "conflicts",
-                                                       "rejected", "receipts", "deleted", "vanished")}}
+                                                       "rejected", "receipts", "deleted", "vanished")},
+                  **self._overview(out)}
         write_private(self.root / "state/status.json", json.dumps(report, indent=2).encode() + b"\n")
         log.info("run done: %s", json.dumps(report["run"]))
+
+    def _overview(self, out: Outcome) -> dict:
+        """For `status --json` (a dashboard): no keys, no file names, nothing the storage could use."""
+        state, now = self.state, self.now()
+        return {
+            "inbox": None if out.left is None else {
+                "left": out.left, "oldest": out.oldest_left, "whole": not state.get("flooded", False)},
+            "senders": {s.hex: {"last_upload": state.last_delivery(s.hex), "last_receipt": state.last_receipt(s.hex) or None,
+                                "deliveries": state.delivery_count(s.hex)} for s in self.senders.values()},
+            "rejected": {"last_7_days": state.rejected_since(now - 7 * DAY), "recent": state.recent_rejections(5)},
+            "store": {"deliveries": state.delivery_count(), "free_bytes": shutil.disk_usage(self.root / "store").free},
+        }
 
 
 # --- receipts: packing within 256 KiB ---------------------------------------------------------------------------

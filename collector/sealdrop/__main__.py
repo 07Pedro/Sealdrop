@@ -5,7 +5,7 @@
     run         one run over the inbox (from a timer, every 10 minutes)
     senders     the paired phones
     unpair      remove a phone: `unpair <fingerprint or label>`
-    status      what the last run found
+    status      what the last run found; `--json` for a dashboard (reads only the state, never keys or settings)
     show-keys   the collector's private keys, to keep safe
 
 The data root is `--root`, or `$SEALDROP_ROOT`, or /srv/sealdrop.
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import fcntl
 import json
 import logging
 import logging.handlers
@@ -22,7 +23,7 @@ import os
 import sys
 from pathlib import Path
 
-from . import encoding
+from . import __version__, encoding
 from .pair import PairError, PairUi, pair
 from .root import Location, Root, RootError
 from .run import Collector
@@ -116,12 +117,60 @@ def cmd_unpair(root: Root, args, ui: PairUi) -> int:
     return 0
 
 
+def _busy(root: Root) -> bool:
+    """A run or a pairing holds the lock right now."""
+    try:
+        fd = os.open(root / "state/lock", os.O_RDONLY)
+    except OSError:
+        return False
+    try:
+        fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        return False
+    except BlockingIOError:
+        return True
+    finally:
+        os.close(fd)
+
+
+def status_report(root: Root, now: int) -> dict:
+    """`status --json`: the last run's report and the paired phones. Reads `state/status.json`, `state/lock` and
+    `senders/` only, so it works from a read-only copy without the keys, the settings or the database."""
+    try:
+        last = json.loads((root / "state/status.json").read_text("utf-8"))
+    except (OSError, ValueError):
+        last = None
+    stats = (last or {}).get("senders") or {}
+    senders = []
+    for path in sorted((root / "senders").glob("*.json")):
+        try:
+            s = json.loads(path.read_text("utf-8"))
+        except (OSError, ValueError):
+            continue
+        seen = stats.get(s.get("key_id"), {})
+        senders.append({"label": s.get("label"), "fingerprint": s.get("fingerprint"), "paired": s.get("paired"),
+                        "last_upload": seen.get("last_upload"), "last_receipt": seen.get("last_receipt"),
+                        "deliveries": seen.get("deliveries")})
+    return {
+        "format": "sealdrop-status", "version": 1, "collector": __version__, "time": now, "busy": _busy(root),
+        "last_run": None if last is None else {k: last.get(k) for k in ("time", "stopped", "storage", "warnings", "run")},
+        "last_pickup": (last or {}).get("last_pickup"),
+        "inbox": (last or {}).get("inbox"),
+        "rejected": (last or {}).get("rejected"),
+        "store": (last or {}).get("store"),
+        "senders": senders,
+    }
+
+
 def cmd_status(root: Root, args, ui: PairUi) -> int:
+    busy = _busy(root)
     try:
         status = json.loads((root / "state/status.json").read_text("utf-8"))
     except OSError:
-        ui.say("No run yet.")
+        ui.say("The first run is in progress." if busy else "No run yet.")
         return 0
+    if busy:
+        ui.say("Running now:   a run or a pairing is in progress")
     ui.say(f"Last run:      {_when(status['time'])}")
     ui.say(f"Last pickup:   {_when(status.get('last_pickup'))}")
     ui.say(f"Warnings:      {', '.join(status['warnings']) or 'none'}")
@@ -164,11 +213,17 @@ def main(argv: list[str] | None = None, ui: PairUi | None = None) -> int:
     parser.add_argument("--test-keys", help="init from a test bucket's key file (setup_b2 --test)")
     parser.add_argument("--import-keys", action="store_true", help="init with the collector's keys from before")
     parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument("--json", action="store_true", help="for status: machine-readable, for a dashboard")
     args = parser.parse_args(argv)
     if args.command == "unpair" and not args.which:
         parser.error("unpair needs the phone's fingerprint or label")
     ui = ui or PairUi()
     root = Root(args.root)
+    if args.command == "status" and args.json:
+        # Before the checks: it must work from a read-only copy of the state, without the settings, and log nothing.
+        import time
+        sys.stdout.write(json.dumps(status_report(root, int(time.time() * 1000)), indent=2) + "\n")
+        return 0
     try:
         if args.command != "init":
             root.check()

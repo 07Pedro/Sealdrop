@@ -182,6 +182,19 @@ class State:
         row = self.db.execute("SELECT last_receipt FROM reported WHERE sender = ?", (sender,)).fetchone()
         return row[0] if row else 0
 
+    def recent_rejections(self, limit: int) -> list[dict]:
+        """The newest rejections, only when and why (for `status --json`)."""
+        rows = self.db.execute("SELECT at, reason FROM rejections ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+        return [{"at": at, "reason": reason} for at, reason in rows]
+
+    def last_delivery(self, sender: str) -> int | None:
+        return self.db.execute("SELECT MAX(at) FROM deliveries WHERE sender = ?", (sender,)).fetchone()[0]
+
+    def delivery_count(self, sender: str | None = None) -> int:
+        if sender is None:
+            return self.db.execute("SELECT COUNT(*) FROM deliveries").fetchone()[0]
+        return self.db.execute("SELECT COUNT(*) FROM deliveries WHERE sender = ?", (sender,)).fetchone()[0]
+
     def rejected_since(self, since: int) -> int:
         return self.db.execute("SELECT COUNT(*) FROM rejections WHERE at >= ?", (since,)).fetchone()[0]
 

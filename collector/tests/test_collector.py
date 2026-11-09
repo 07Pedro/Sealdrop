@@ -508,5 +508,91 @@ class Commands(Base):
         self.assertEqual(config["clock_check"], "off")
 
 
+class StatusJson(Base):
+    """`status --json` for a dashboard: what the last run found, from a read-only copy of the state."""
+
+    def setUp(self):
+        super().setUp()
+        self.phone = self.paired_phone("Phone A")
+
+    def report(self) -> dict:
+        import contextlib
+        from sealdrop.__main__ import main
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(main(["status", "--json", "--root", str(self.root.path)]), 0)
+        return json.loads(out.getvalue())
+
+    def test_before_the_first_run(self):
+        r = self.report()
+        self.assertEqual((r["format"], r["version"], r["busy"], r["last_run"]), ("sealdrop-status", 1, False, None))
+        self.assertEqual([(s["label"], s["last_upload"]) for s in r["senders"]], [("Phone A", None)])
+
+    def test_after_a_pickup(self):
+        self.phone.send([(APP, "d1", {"a": b"1"})])
+        self.run_once()
+        r = self.report()
+        self.assertEqual(r["last_pickup"], self.clock())
+        self.assertEqual(r["last_run"]["run"]["stored"], 1)
+        self.assertEqual(r["inbox"], {"left": 0, "oldest": None, "whole": True})
+        (s,) = r["senders"]
+        self.assertEqual((s["fingerprint"], s["last_upload"], s["last_receipt"], s["deliveries"]),
+                         (self.phone.fingerprint(), self.clock(), self.clock(), 1))
+        self.assertEqual(r["store"]["deliveries"], 1)
+        self.assertEqual(r["rejected"], {"last_7_days": 0, "recent": []})
+
+    def test_rejected_and_left_in_the_inbox(self):
+        stranger = Phone(self.fake, offer_for_tests(self.root, self.keys, self.clock()))
+        stranger.send([(APP, "d1", {"a": b"1"})])
+        self.run_once()
+        config = json.loads((self.root / "config/collector.json").read_text())
+        config["free_reserve"] = 1 << 60  # no room: the next upload waits in the inbox
+        (self.root / "config/collector.json").write_text(json.dumps(config))
+        self.phone.send([(APP, "d2", {"a": b"2"})])
+        self.clock.now += 60_000
+        self.run_once()
+        r = self.report()
+        self.assertEqual(r["rejected"]["last_7_days"], 1)
+        self.assertEqual(r["rejected"]["recent"], [{"at": self.clock() - 60_000, "reason": "unknown-sender"}])
+        self.assertEqual(r["inbox"]["left"], 1)
+        self.assertIsNotNone(r["inbox"]["oldest"])
+        self.assertIn("disk-full", r["last_run"]["warnings"])
+
+    def test_busy_while_a_run_holds_the_lock(self):
+        from sealdrop.run import Lock
+        self.run_once()
+        with Lock(self.root / "state/lock"):
+            self.assertTrue(self.report()["busy"])
+        self.assertFalse(self.report()["busy"])
+
+    def test_works_read_only_without_keys_or_settings(self):
+        self.phone.send([(APP, "d1", {"a": b"1"})])
+        self.run_once()
+        # As a dashboard's sandbox sees it: only state/ and senders/, read-only.
+        copy = self.tmp / "copy"
+        for name in ("state", "senders"):
+            shutil.copytree(self.root / name, copy / name)
+        before = sorted(p.relative_to(copy) for p in copy.rglob("*"))
+        for p in [copy, *copy.rglob("*")]:
+            p.chmod(0o500 if p.is_dir() else 0o400)
+        self.addCleanup(lambda: [p.chmod(0o700) for p in [copy, *copy.rglob("*")] if p.is_dir()])
+        from sealdrop.__main__ import status_report
+        r = status_report(Root(copy), self.clock())
+        self.assertEqual(r["senders"][0]["deliveries"], 1)
+        self.assertEqual(sorted(p.relative_to(copy) for p in copy.rglob("*")), before)  # nothing written
+
+    def test_no_secrets_in_the_report(self):
+        self.phone.send([(APP, "d1", {"a": b"1"})])
+        self.run_once()
+        text = json.dumps(self.report())
+        for key in self.keys.values():
+            self.assertNotIn(key.secret, text)
+            self.assertNotIn(key.id, text)
+        for s in self.root.senders().values():
+            self.assertNotIn(s.hex, text)
+            self.assertNotIn(encoding.b64url(s.open), text)
+        self.assertNotIn("inbox-test", text)  # no bucket name
+
+
 if __name__ == "__main__":
     unittest.main()

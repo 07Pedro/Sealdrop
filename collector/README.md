@@ -38,7 +38,8 @@ python3 -m sealdrop show-keys   # once: the collector's own keys, to keep safe
 python3 -m sealdrop pair        # in your own terminal: the QR code for the phone, then compare the codes
 python3 -m sealdrop run         # one run over the inbox; a timer starts it every 10 minutes
 python3 -m sealdrop senders     # the paired phones;  unpair <fingerprint or label> removes one
-python3 -m sealdrop status      # what the last run found
+python3 -m sealdrop status      # what the last run found, and whether a run is going on now
+python3 -m sealdrop status --json   # the same for a dashboard
 ```
 
 - **`init`** asks for the endpoint, region, bucket and the two `collector-…` keys. `--import-keys` takes the
@@ -50,6 +51,21 @@ python3 -m sealdrop status      # what the last run found
   plain terminal window without session logging, and close it afterwards.
 - **`run`** does nothing while `pair` waits, or (with the default `--clock-check`) until the clock is synchronized.
   It logs to `log/collector.log` (never paths, keys or content) and writes `state/status.json`.
+- **`status --json`** is for a dashboard or a monitoring script. It reads only `state/status.json`, `state/lock` and
+  `senders/`, so it also works from a read-only copy without the keys and settings, and it writes nothing:
+
+  | Field | Contents |
+  |---|---|
+  | `format`, `version`, `collector`, `time` | `"sealdrop-status"`, `1`, the collector's version, now (ms since 1970) |
+  | `busy` | a run or a pairing is going on right now |
+  | `last_run` | the last run's `time`, `stopped` (why it stopped early, or `null`), `storage` (a storage problem in words), `warnings` and `run` (what it counted) |
+  | `last_pickup` | when a delivery was last stored |
+  | `inbox` | after the last run: `left` (uploads still waiting), `oldest` (the oldest one's upload time), `whole` (`false` while the inbox is too full to list in one run) |
+  | `rejected` | `last_7_days` and the newest five: `at` and `reason` (§5's reasons) |
+  | `store` | `deliveries` stored, `free_bytes` left |
+  | `senders` | each paired phone: `label`, `fingerprint`, `paired`, `last_upload`, `last_receipt`, `deliveries` |
+
+  Times are milliseconds since 1970, `null` when unknown. No keys, bucket names or file names.
 - **The store:** `store/<app>/<delivery>/` holds exactly the files an app handed over. A delivery appears all at once
   or not at all; anything starting with `.` isn't a delivery. Readers only read it.
 
