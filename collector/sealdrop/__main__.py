@@ -6,6 +6,7 @@
     senders     the paired phones
     unpair      remove a phone: `unpair <fingerprint or label>`
     status      what the last run found; `--json` for a dashboard (reads only the state, never keys or settings)
+    verify      check the store against the collector's notes (changes neither; monthly from a timer)
     show-keys   the collector's private keys, to keep safe
 
 The data root is `--root`, or `$SEALDROP_ROOT`, or /srv/sealdrop.
@@ -20,6 +21,7 @@ import json
 import logging
 import logging.handlers
 import os
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -27,6 +29,7 @@ from . import __version__, encoding
 from .pair import PairError, PairUi, pair
 from .root import Location, Root, RootError
 from .run import Collector
+from .verify import NoNotes, last_result, verify
 
 DEFAULT_ROOT = "/srv/sealdrop"
 
@@ -118,7 +121,7 @@ def cmd_unpair(root: Root, args, ui: PairUi) -> int:
 
 
 def _busy(root: Root) -> bool:
-    """A run or a pairing holds the lock right now."""
+    """Something holds the collector's lock right now: a run, a pairing, `verify` or a backup job."""
     try:
         fd = os.open(root / "state/lock", os.O_RDONLY)
     except OSError:
@@ -134,8 +137,9 @@ def _busy(root: Root) -> bool:
 
 
 def status_report(root: Root, now: int) -> dict:
-    """`status --json`: the last run's report and the paired phones. Reads `state/status.json`, `state/lock` and
-    `senders/` only, so it works from a read-only copy without the keys, the settings or the database."""
+    """`status --json`: the last run's report, the last check's and the paired phones. Reads `state/status.json`,
+    `state/verify.json`, `state/lock` and `senders/` only, so it works from a read-only copy without the keys, the
+    settings or the database."""
     try:
         last = json.loads((root / "state/status.json").read_text("utf-8"))
     except (OSError, ValueError):
@@ -158,6 +162,7 @@ def status_report(root: Root, now: int) -> dict:
         "inbox": (last or {}).get("inbox"),
         "rejected": (last or {}).get("rejected"),
         "store": (last or {}).get("store"),
+        "verify": last_result(root),
         "senders": senders,
     }
 
@@ -170,14 +175,61 @@ def cmd_status(root: Root, args, ui: PairUi) -> int:
         ui.say("The first run is in progress." if busy else "No run yet.")
         return 0
     if busy:
-        ui.say("Running now:   a run or a pairing is in progress")
+        ui.say("Running now:   a run, a pairing, a check or a backup is in progress")
     ui.say(f"Last run:      {_when(status['time'])}")
     ui.say(f"Last pickup:   {_when(status.get('last_pickup'))}")
     ui.say(f"Warnings:      {', '.join(status['warnings']) or 'none'}")
     if status.get("storage"):
         ui.say(f"Storage:       {status['storage']}")
     ui.say("That run:      " + ", ".join(f"{k} {v}" for k, v in status["run"].items()))
+    checked = last_result(root)
+    if checked:
+        problems = {k: checked[k] for k in ("missing", "changed", "unreadable", "unknown") if checked.get(k)}
+        ui.say(f"Last check:    {_when(checked['time'])}, {checked['deliveries']} deliveries, "
+               + (", ".join(f"{v} {k}" for k, v in problems.items()) if problems else "all as noted"))
     return 0
+
+
+_EXPLAINED = {
+    "missing": "noted, but not in the store",
+    "changed": "the files differ from when they were stored",
+    "unreadable": "a file couldn't be read: the disk may be failing",
+    "unknown": "in the store, but not in the notes",
+}
+
+
+def cmd_verify(root: Root, args, ui: PairUi) -> int:
+    try:
+        found, record, written = verify(root, lambda: ui.say("Waiting: a run, a pairing or a backup holds the lock …"))
+    except NoNotes as e:
+        ui.say(f"Not done: {e}")
+        return 2
+    except (OSError, sqlite3.Error) as e:
+        ui.say(f"Not done: the notes or the store couldn't be read ({e})")
+        return 2
+    try:
+        _log_to(root, also_terminal=False)  # not on a read-only copy
+    except OSError:
+        pass
+    counts = ", ".join(f"{k} {record[k]}" for k in ("deliveries", "missing", "changed", "unreadable", "unknown"))
+    log = logging.getLogger("sealdrop")
+    (log.info if found.ok else log.warning)("verify: %s", counts)
+    seconds = record["took_ms"] / 1000
+    if found.ok:
+        ui.say(f"Checked {found.deliveries} deliveries in {seconds:.0f} s: all as noted.")
+    else:
+        ui.say(f"Checked {found.deliveries} deliveries in {seconds:.0f} s.")
+        for kind, explained in _EXPLAINED.items():
+            names = getattr(found, kind)
+            if names:
+                ui.say(f"  {len(names)} {kind}: {explained}")
+                for name in names[:20]:
+                    ui.say(f"      {name}")
+                if len(names) > 20:
+                    ui.say(f"      … and {len(names) - 20} more")
+    if not written:
+        ui.say("(The result wasn't kept: state/ isn't writable here.)")
+    return 0 if found.ok else 1
 
 
 def cmd_show_keys(root: Root, args, ui: PairUi) -> int:
@@ -195,7 +247,7 @@ def cmd_show_keys(root: Root, args, ui: PairUi) -> int:
 
 
 COMMANDS = {"init": cmd_init, "pair": cmd_pair, "run": cmd_run, "senders": cmd_senders, "unpair": cmd_unpair,
-            "status": cmd_status, "show-keys": cmd_show_keys}
+            "status": cmd_status, "verify": cmd_verify, "show-keys": cmd_show_keys}
 
 
 def main(argv: list[str] | None = None, ui: PairUi | None = None) -> int:
@@ -224,6 +276,9 @@ def main(argv: list[str] | None = None, ui: PairUi | None = None) -> int:
         import time
         sys.stdout.write(json.dumps(status_report(root, int(time.time() * 1000)), indent=2) + "\n")
         return 0
+    if args.command == "verify":
+        # Also on a restored copy, without the settings: it writes only its result, and only if it can.
+        return cmd_verify(root, args, ui)
     try:
         if args.command != "init":
             root.check()

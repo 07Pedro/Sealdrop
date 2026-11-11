@@ -816,7 +816,9 @@ parcelable SenderInfo { boolean paired; String fingerprint; long lastPickup; lon
 
 A Python 3 program with two packages: `cryptography`, and `segno` (pure Python) to draw the pairing QR code.
 
-**Runs:** every 10 minutes; only one at a time (a lock file). While the `pair` command waits, it holds the lock (§7).
+**Runs:** every 10 minutes; only one at a time (a lock file, `state/lock`). While the `pair` command waits, it holds the
+lock (§7); so do the `verify` command while it checks the store, and a backup job for its snapshot. A run that finds
+the lock held skips quietly.
 A run starts only when the system clock is synchronized (`timedatectl show -p NTPSynchronized` says `yes`). Small
 boards such as the Raspberry Pi have no clock of their own, and until it's set, signed requests fail and times would
 be wrong.
@@ -829,7 +831,7 @@ keys/        the collector's opening and signing keys; retired/ holds old openin
 senders/     one file per paired sender: key ID, both public keys, label, when it was paired
 state/       what was handled (names, version IDs, sealed checksums, results, the digest and seq of every stored
              delivery), each sender's seq, the listing position, receipts still to write, status.json, instance,
-             and last-backup (written by a backup job, if any)
+             verify.json (the last check of the store) and last-backup (written by a backup job, if any)
 incoming/    downloads, each named by the hex SHA-256 of: name ‖ 0x00 ‖ version ID
 store/       THE RESULT: store/<app>/<delivery>/<path>
 conflicts/   deliveries whose ID was already stored with other content: conflicts/<app>/<delivery>/<digest>/

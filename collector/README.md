@@ -29,8 +29,8 @@ real test bucket ([../tools/e2e](../tools/e2e)). **On a server** (such as a Rasp
 ## The commands
 
 Run them as the collector's own user, from this folder (or with the package installed). On a server installed with
-[INSTALL.md](INSTALL.md), the timer starts `run`, and the `sealdrop` command runs the others as the collector's user. The data root is `--root`,
-`$SEALDROP_ROOT`, or `/srv/sealdrop`.
+[INSTALL.md](INSTALL.md), timers start `run` and `verify`, and the `sealdrop` command runs the others as the collector's
+user. The data root is `--root`, `$SEALDROP_ROOT`, or `/srv/sealdrop`.
 
 ```sh
 python3 -m sealdrop init        # the storage locations, the collector's storage keys (asked for, not shown), new keys
@@ -40,6 +40,7 @@ python3 -m sealdrop run         # one run over the inbox; a timer starts it ever
 python3 -m sealdrop senders     # the paired phones;  unpair <fingerprint or label> removes one
 python3 -m sealdrop status      # what the last run found, and whether a run is going on now
 python3 -m sealdrop status --json   # the same for a dashboard
+python3 -m sealdrop verify      # check the store against the notes; a timer runs it once a month
 ```
 
 - **`init`** asks for the endpoint, region, bucket and the two `collector-…` keys. `--import-keys` takes the
@@ -51,18 +52,26 @@ python3 -m sealdrop status --json   # the same for a dashboard
   plain terminal window without session logging, and close it afterwards.
 - **`run`** does nothing while `pair` waits, or (with the default `--clock-check`) until the clock is synchronized.
   It logs to `log/collector.log` (never paths, keys or content) and writes `state/status.json`.
-- **`status --json`** is for a dashboard or a monitoring script. It reads only `state/status.json`, `state/lock` and
-  `senders/`, so it also works from a read-only copy without the keys and settings, and it writes nothing:
+- **`verify`** checks every delivery the collector's notes list: its folder in `store/` must be there and hold exactly
+  the files it was stored with (the same digest as at pickup). It also counts folders in `store/` the notes don't
+  know. It changes neither the store nor the notes, and it holds the collector's lock while it checks (runs skip
+  meanwhile and carry on after). The result goes into `state/verify.json` (counts only) for `status`. It works on a
+  restored copy of a data root too, without the keys and settings; that's how a backup's restore test can check the
+  copy. Exit code 0: all as noted; 1: something doesn't match (it lists what); 2: no notes to check.
+- **`status --json`** is for a dashboard or a monitoring script. It reads only `state/status.json`,
+  `state/verify.json`, `state/lock` and `senders/`, so it also works from a read-only copy without the keys and
+  settings, and it writes nothing:
 
   | Field | Contents |
   |---|---|
   | `format`, `version`, `collector`, `time` | `"sealdrop-status"`, `1`, the collector's version, now (ms since 1970) |
-  | `busy` | a run or a pairing is going on right now |
+  | `busy` | something holds the collector's lock right now: a run, a pairing, `verify` or a backup job |
   | `last_run` | the last run's `time`, `stopped` (why it stopped early, or `null`), `storage` (a storage problem in words), `warnings` and `run` (what it counted) |
   | `last_pickup` | when a delivery was last stored |
   | `inbox` | after the last run: `left` (uploads still waiting), `oldest` (the oldest one's upload time), `whole` (`false` while the inbox is too full to list in one run) |
   | `rejected` | `last_7_days` and the newest five: `at` and `reason` (§5's reasons) |
   | `store` | `deliveries` stored, `free_bytes` left |
+  | `verify` | the last check, or `null`: `time`, `took_ms`, `ok`, and the counts `deliveries`, `missing`, `changed`, `unreadable` (a file the disk couldn't read), `unknown` (in the store, not in the notes) |
   | `senders` | each paired phone: `label`, `fingerprint`, `paired`, `last_upload`, `last_receipt`, `deliveries` |
 
   Times are milliseconds since 1970, `null` when unknown. No keys, bucket names or file names.

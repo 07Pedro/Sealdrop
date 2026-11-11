@@ -1,0 +1,50 @@
+# `sealdrop verify` once a month, from sealdrop-verify.timer: checks every stored delivery against the collector's
+# notes and keeps the result in state/verify.json (`sealdrop status` shows it). It changes nothing in the store or the
+# notes. If something doesn't match, the unit ends as failed (`systemctl --failed`), and `sealdrop verify` by hand says
+# what. It holds the collector's lock while it checks; runs skip meanwhile and carry on after.
+#
+# Another data root: as for sealdrop-collector.service (`systemctl edit`), the same three settings.
+
+[Unit]
+Description=Sealdrop collector: check the store against the notes
+RequiresMountsFor=/srv/sealdrop
+
+[Service]
+Type=oneshot
+User=sealdrop
+Group=sealdrop
+Environment=SEALDROP_ROOT=/srv/sealdrop
+ExecStart=/opt/sealdrop/venv/bin/python -I -m sealdrop verify
+UMask=0077
+Nice=19
+IOSchedulingClass=idle
+# It reads the whole store: a few seconds now, longer as it grows.
+TimeoutStartSec=12h
+MemoryMax=256M
+
+# The sandbox: as the collector's, and no network at all.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ReadWritePaths=/srv/sealdrop
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources

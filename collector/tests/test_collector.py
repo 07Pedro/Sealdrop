@@ -594,5 +594,118 @@ class StatusJson(Base):
         self.assertNotIn("inbox-test", text)  # no bucket name
 
 
+class Verify(Base):
+    """`verify`: the store against the notes, changing neither."""
+
+    def setUp(self):
+        super().setUp()
+        self.phone = self.paired_phone("Phone A")
+        self.phone.send([(APP, "d1", {"a": b"1", "sub/b": b"22"}), (APP, "d2", {"a": b"3"}),
+                         ("org.example.other", "x1", {"c": b"4"})])
+        self.run_once()
+
+    def verify(self, root: Path | None = None) -> tuple[int, list[str]]:
+        from sealdrop.__main__ import main
+        ui = Pairing.Ui(self)
+        code = main(["verify", "--root", str(root or self.root.path)], ui)
+        return code, ui.said
+
+    def recorded(self) -> dict:
+        return json.loads((self.root / "state/verify.json").read_text())
+
+    def test_all_as_noted(self):
+        before = sorted(os.listdir(self.root / "state"))
+        code, said = self.verify()
+        self.assertEqual(code, 0)
+        self.assertEqual(sorted(os.listdir(self.root / "state")), sorted(before + ["verify.json"]))  # no -wal, -shm
+        self.assertIn("Checked 3 deliveries", said[-1])
+        r = self.recorded()
+        self.assertEqual((r["ok"], r["deliveries"], r["missing"], r["changed"], r["unreadable"], r["unknown"]),
+                         (True, 3, 0, 0, 0, 0))
+
+    def test_missing_changed_and_unknown(self):
+        store = self.root / "store"
+        shutil.rmtree(store / APP / "d2")
+        (store / APP / "d1" / "sub/b").write_bytes(b"23")
+        (store / APP / "d9").mkdir()
+        (store / "stray.txt").write_text("?")
+        (store / ".tmp" / "leftover").mkdir(parents=True)  # the collector's own: not a delivery
+        (store / APP / ".hidden").mkdir()
+        code, said = self.verify()
+        self.assertEqual(code, 1)
+        text = "\n".join(said)
+        for name in (f"{APP}/d2", f"{APP}/d1", f"{APP}/d9", "stray.txt"):
+            self.assertIn(name, text)
+        self.assertNotIn(".tmp", text)
+        self.assertNotIn(".hidden", text)
+        r = self.recorded()
+        self.assertEqual((r["ok"], r["missing"], r["changed"], r["unreadable"], r["unknown"]), (False, 1, 1, 0, 2))
+        self.assertNotIn("d1", json.dumps(r))  # counts only, no names
+        self.assertEqual(sorted(p.name for p in (self.root / "store" / APP).iterdir()), [".hidden", "d1", "d9"])
+
+    @unittest.skipIf(os.geteuid() == 0, "root reads every file")
+    def test_unreadable(self):
+        f = self.root / "store" / APP / "d2" / "a"
+        f.chmod(0)
+        self.addCleanup(f.chmod, 0o600)
+        self.assertEqual(self.verify()[0], 1)
+        self.assertEqual(self.recorded()["unreadable"], 1)
+
+    def test_status_shows_the_last_check(self):
+        from sealdrop.__main__ import status_report
+        self.assertIsNone(status_report(self.root, self.clock())["verify"])
+        shutil.rmtree(self.root / "store" / APP / "d2")
+        self.verify()
+        v = status_report(self.root, self.clock())["verify"]
+        self.assertEqual((v["ok"], v["deliveries"], v["missing"]), (False, 3, 1))
+        ui = Pairing.Ui(self)
+        from sealdrop.__main__ import main
+        main(["status", "--root", str(self.root.path)], ui)
+        self.assertIn("3 deliveries, 1 missing", ui.said[-1])
+
+    def test_waits_for_the_lock_and_runs_skip_meanwhile(self):
+        from sealdrop.run import Lock
+        from sealdrop.verify import holding_the_lock, verify
+        held = Lock(self.root / "state/lock")
+        self.assertTrue(held.__enter__())
+        waited = []
+
+        def waiting():
+            waited.append(True)
+            held.__exit__()  # the run in progress ends
+        found, _, written = verify(self.root, waiting)
+        self.assertEqual((waited, found.ok, written), ([True], True, True))
+        fd = holding_the_lock(self.root, self.fail)
+        try:
+            self.assertEqual(self.run_once().skipped, "locked")
+        finally:
+            os.close(fd)
+        self.assertIsNone(self.run_once().skipped)
+
+    def test_a_restored_copy_read_only(self):
+        copy = self.tmp / "restored"
+        shutil.copytree(self.root.path, copy)
+        shutil.rmtree(copy / "config")
+        shutil.rmtree(copy / "keys")
+        shutil.rmtree(copy / "store" / APP / "d1")
+        before = sorted(p.relative_to(copy) for p in copy.rglob("*"))
+        for p in [copy, *copy.rglob("*")]:
+            p.chmod(0o500 if p.is_dir() else 0o400)
+        self.addCleanup(lambda: [p.chmod(0o700) for p in [copy, *copy.rglob("*")] if p.is_dir()])
+        code, said = self.verify(copy)
+        self.assertEqual(code, 1)
+        self.assertIn(f"{APP}/d1", "\n".join(said))
+        self.assertIn("wasn't kept", said[-1])
+        self.assertEqual(sorted(p.relative_to(copy) for p in copy.rglob("*")), before)  # nothing written
+
+    def test_no_notes(self):
+        empty = self.tmp / "empty"
+        empty.mkdir()
+        code, said = self.verify(empty)
+        self.assertEqual(code, 2)
+        self.assertIn("no collector notes", said[-1])
+        self.assertEqual(list(empty.iterdir()), [])
+
+
 if __name__ == "__main__":
     unittest.main()

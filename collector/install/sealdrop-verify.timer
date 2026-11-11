@@ -1,0 +1,13 @@
+# Starts sealdrop-verify.service once a month, at a random time in the first night of the month. If the server was off
+# then, it runs soon after the next start.
+
+[Unit]
+Description=Sealdrop collector: check the store once a month
+
+[Timer]
+OnCalendar=monthly
+RandomizedDelaySec=6h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

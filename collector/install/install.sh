@@ -1,6 +1,7 @@
 #!/bin/sh
 # Installs or updates the collector on a Linux server with systemd (Debian, Raspberry Pi OS): its own user, Python and
-# the packages in requirements.txt in /opt/sealdrop, the `sealdrop` command, and the service with its timer.
+# the packages in requirements.txt in /opt/sealdrop, the `sealdrop` command, and the services with their timers (a run
+# every 10 minutes, a check of the store once a month).
 # Run it as root from the repository: `sudo collector/install/install.sh`. Safe to run again (that's the update);
 # it never changes what's in the data root. Details: ../INSTALL.md.
 set -eu
@@ -11,6 +12,8 @@ OPT=/opt/sealdrop
 VENV=$OPT/venv
 SERVICE=sealdrop-collector.service
 TIMER=sealdrop-collector.timer
+VERIFY_SERVICE=sealdrop-verify.service
+VERIFY_TIMER=sealdrop-verify.timer
 
 say() { printf '%s\n' "$*"; }
 fail() { printf 'Not done: %s\n' "$*" >&2; exit 1; }
@@ -23,6 +26,14 @@ command -v python3 >/dev/null || fail "Python 3.11 or newer is needed (python3).
 python3 -c 'import sys; sys.exit(sys.version_info < (3, 11))' || fail "Python 3.11 or newer is needed."
 python3 -c 'import struct, sys; sys.exit(struct.calcsize("P") != 8)' ||
     fail "this needs a 64-bit system: the cryptography package has no ready-made files for 32-bit ones."
+# The data root's disk: if /etc/fstab names a disk for the data root's place (such as an SSD at /srv) and it isn't
+# mounted, the data root would be made on the disk below it (the SD card), and the collector would run there.
+disk=$(findmnt --fstab -n -o TARGET 2>/dev/null |
+    awk -v data="$DATA/" '$0 != "/" && index(data, $0 "/") == 1 && length($0) > length(best) { best = $0 }
+                          END { print best }')
+if [ -n "$disk" ] && ! findmnt -n --mountpoint "$disk" >/dev/null; then
+    fail "the disk for $disk (in /etc/fstab) isn't mounted. Mount it first (sudo mount $disk), then run this again."
+fi
 if command -v dpkg >/dev/null; then
     missing=""
     for package in python3-venv ca-certificates; do
@@ -56,15 +67,22 @@ case $fstype in
         fail "$DATA is on a $fstype filesystem; the store needs a case-sensitive one such as ext4." ;;
 esac
 
-# --- let a run in progress finish, and none start while the code changes ----------------------------------------
+# --- let a run or a check in progress finish, and none start while the code changes -----------------------------
 timer_was_on=no
 if systemctl is-active --quiet "$TIMER"; then
     timer_was_on=yes
     systemctl stop "$TIMER"
 fi
-while [ "$(systemctl show -p ActiveState --value "$SERVICE")" = activating ]; do
-    say "Waiting for the run in progress to finish …"
-    sleep 10
+verify_timer_was_on=no
+if systemctl is-active --quiet "$VERIFY_TIMER"; then
+    verify_timer_was_on=yes
+    systemctl stop "$VERIFY_TIMER"
+fi
+for unit in "$SERVICE" "$VERIFY_SERVICE"; do
+    while [ "$(systemctl show -p ActiveState --value "$unit")" = activating ]; do
+        say "Waiting for the run or check in progress to finish …"
+        sleep 10
+    done
 done
 
 # --- Python and the packages, at exactly the versions and checksums in requirements.txt -----------------------
@@ -89,7 +107,9 @@ chmod -R u=rwX,go=rX "$OPT"
 
 # --- the command and the units ------------------------------------------------------------------------------------
 install -m 755 "$HERE/sealdrop" /usr/local/bin/sealdrop
-install -m 644 "$HERE/$SERVICE" "$HERE/$TIMER" /etc/systemd/system/
+for unit in "$SERVICE" "$TIMER" "$VERIFY_SERVICE" "$VERIFY_TIMER"; do
+    install -m 644 "$HERE/$unit" /etc/systemd/system/
+done
 systemctl daemon-reload
 
 say "Installed: the collector in $OPT, the data root $DATA ($device, $fstype)."
@@ -97,14 +117,16 @@ case $device in
     /dev/mmcblk*) say "Note: $DATA is on an SD card. For lasting use, put it on a USB SSD first (INSTALL.md)." ;;
 esac
 if [ -f "$DATA/config/collector.json" ]; then
-    systemctl enable --now "$TIMER" >/dev/null 2>&1
-    say "The timer is on: a run every 10 minutes."
-elif [ "$timer_was_on" = yes ]; then
-    systemctl start "$TIMER"
+    systemctl enable --now "$TIMER" "$VERIFY_TIMER" >/dev/null 2>&1
+    say "The timers are on: a run every 10 minutes, a check of the store once a month."
 else
-    say "Next, in your own terminal (not as root):"
-    say "  sealdrop init        the storage locations and the collector's two storage keys"
-    say "  sealdrop show-keys   once: the collector's own keys, to keep safe"
-    say "  sudo systemctl enable --now $TIMER"
-    say "  sealdrop pair        pair a phone"
+    [ "$timer_was_on" = no ] || systemctl start "$TIMER"
+    [ "$verify_timer_was_on" = no ] || systemctl start "$VERIFY_TIMER"
+    if [ "$timer_was_on" = no ]; then
+        say "Next, in your own terminal (not as root):"
+        say "  sealdrop init        the storage locations and the collector's two storage keys"
+        say "  sealdrop show-keys   once: the collector's own keys, to keep safe"
+        say "  sudo systemctl enable --now $TIMER $VERIFY_TIMER"
+        say "  sealdrop pair        pair a phone"
+    fi
 fi

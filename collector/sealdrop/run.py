@@ -124,7 +124,7 @@ class Collector:
         self.root.check()
         with Lock(self.root / "state/lock") as locked:
             if not locked:
-                log.info("another run or a pairing holds the lock; skipped")
+                log.info("another run, a pairing, a check or a backup holds the lock; skipped")
                 return Outcome(skipped="locked")
             if not clock_ok(self.config["clock_check"]):
                 log.warning("the system clock isn't synchronized yet; skipped")
@@ -755,7 +755,8 @@ def make_storage(root: Root, sleep: Callable[[float], None] = time.sleep) -> Sto
 
 
 class Lock:
-    """One run at a time (§10); the `pair` command holds it while it waits."""
+    """One run at a time (§10). The `pair` command holds it while it waits, `verify` while it checks, and a backup job
+    may hold it for its snapshot (`flock` on `state/lock`): runs skip meanwhile."""
 
     def __init__(self, path: Path):
         self.path = path
