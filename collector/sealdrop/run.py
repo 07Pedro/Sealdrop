@@ -37,6 +37,10 @@ MAX_DOWNLOADS = 200
 PAUSES = (30, 60, 120)  # §8: the collector's retries within a run
 STATUS_EVERY = DAY      # a status receipt for each sender that got none for a day
 _NAME = re.compile(r"[a-z2-7]{32}")
+# The store's folders and files are made with group bits. The service's umask (0077) clears them, so they stay the
+# owner's alone, unless the owner lets a reader in with a default ACL on store/ (INSTALL.md, "Another user reading the
+# store"): under a default ACL the umask doesn't apply, and these bits are the most the ACL can then grant (its mask).
+STORE_DIR_MODE, STORE_FILE_MODE = 0o750, 0o640
 
 
 class Stop(Exception):
@@ -424,7 +428,7 @@ class Collector:
         dest = dest_app / d.delivery
         new_app = not dest_app.exists()
         if new_app:
-            dest_app.mkdir(mode=0o700)
+            dest_app.mkdir(mode=STORE_DIR_MODE)
             fsync_dir(self.root / "store")
         fsync_tree(src)
         try:
@@ -657,8 +661,8 @@ class _TmpWriter:
         self.folder = folder
         self.index: dict[int, int] = {}
         self.fd: int | None = None
-        folder.parent.mkdir(exist_ok=True, mode=0o700)
-        folder.mkdir(mode=0o700)
+        folder.parent.mkdir(exist_ok=True, mode=STORE_DIR_MODE)
+        folder.mkdir(mode=STORE_DIR_MODE)
 
     def folder_of(self, d: Delivery) -> Path:
         return self.folder / str(self.index.get(id(d), -1))
@@ -669,11 +673,12 @@ class _TmpWriter:
         self.close()
         n = self.index.setdefault(id(d), len(self.index))
         target = self.folder / str(n)
+        target.mkdir(exist_ok=True, mode=STORE_DIR_MODE)
         parts = entry.path.split("/")
-        for part in parts[:-1]:
+        for part in parts[:-1]:  # one by one, so each folder gets the mode (parents=True would use the default)
             target = target / part
-        target.mkdir(parents=True, exist_ok=True, mode=0o700)
-        self.fd = os.open(target / parts[-1], os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+            target.mkdir(exist_ok=True, mode=STORE_DIR_MODE)
+        self.fd = os.open(target / parts[-1], os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, STORE_FILE_MODE)
         fd = self.fd
 
         def write(data: bytes) -> None:

@@ -293,6 +293,55 @@ class Pickup(Base):
         self.assertNotIn("x", [p.name for p in self.root.path.rglob("*")])
 
 
+class StoreModes(Base):
+    """The store's folders and files: the owner's alone under the service's umask; a default ACL can let a reader in."""
+
+    FILES = {"a": b"1", "sub/deeper/b": b"22"}
+
+    def store_and_list(self) -> dict[str, Path]:
+        old = os.umask(0o077)  # as in sealdrop-collector.service
+        try:
+            self.paired_phone().send([(APP, "d1", self.FILES)])
+            self.assertEqual(self.run_once().stored, 1)
+        finally:
+            os.umask(old)
+        app = self.root / "store" / APP
+        return {p.relative_to(app.parent).as_posix(): p for p in [app, *app.rglob("*")]}
+
+    def test_owner_only_under_the_services_umask(self):
+        modes = {name: p.stat().st_mode & 0o777 for name, p in self.store_and_list().items()}
+        self.assertEqual(modes, {APP: 0o700, f"{APP}/d1": 0o700, f"{APP}/d1/a": 0o600, f"{APP}/d1/sub": 0o700,
+                                 f"{APP}/d1/sub/deeper": 0o700, f"{APP}/d1/sub/deeper/b": 0o600})
+
+    # POSIX ACLs as Linux stores them (acl(5)): a version, then (tag, permissions, id) entries.
+    USER_OBJ, USER, GROUP_OBJ, MASK, OTHER, NO_ID = 0x01, 0x02, 0x04, 0x10, 0x20, 0xFFFFFFFF
+
+    @classmethod
+    def acl(cls, *entries) -> bytes:
+        import struct
+        return struct.pack("<I", 2) + b"".join(struct.pack("<HHI", *e) for e in entries)
+
+    @classmethod
+    def entries(cls, raw: bytes) -> dict:
+        import struct
+        return {(tag, i): perm for tag, perm, i in struct.iter_unpack("<HHI", raw[4:])}
+
+    def test_a_default_acl_lets_a_reader_in(self):
+        reader = os.getuid() + 4242  # any user id will do: only the entries are checked
+        default = self.acl((self.USER_OBJ, 7, self.NO_ID), (self.USER, 5, reader), (self.GROUP_OBJ, 0, self.NO_ID),
+                           (self.MASK, 5, self.NO_ID), (self.OTHER, 0, self.NO_ID))
+        try:
+            os.setxattr(self.root / "store", "system.posix_acl_default", default)
+        except OSError:
+            self.skipTest("no POSIX ACLs on this filesystem")
+        for name, p in self.store_and_list().items():
+            got = self.entries(os.getxattr(p, "system.posix_acl_access"))
+            want = 5 if p.is_dir() else 4  # r-x for folders, r-- for files: the mask lets the reader's entry through
+            self.assertEqual((got[(self.USER, reader)], got[(self.MASK, self.NO_ID)], got[(self.OTHER, self.NO_ID)]),
+                             (5, want, 0), name)
+        self.assertEqual(self.stored(APP, "d1"), self.FILES)
+
+
 class Rejections(Base):
     """Whole files that are rejected: nothing stored, every phone told, the upload deleted."""
 

@@ -6,7 +6,8 @@ of RAM is plenty). The collector runs every 10 minutes from a systemd timer, as 
 **State:** the packaging is tested in WSL (Python 3.11 and the locked packages; the service's sandbox with a real run
 against a test bucket, and all the collector's tests inside it), and in use on a Raspberry Pi 3B+ with 64-bit Raspberry
 Pi OS. New in 0.3.0: `sealdrop-verify.service` is checked with `systemd-analyze` (verify, security); its first run on
-the Pi is still to come.
+the Pi is still to come. New in 0.3.1: the store can be shared with an ACL ("Another user reading the store"), tested
+with real ACLs on ext4 in WSL.
 
 ## What you need
 
@@ -76,7 +77,7 @@ sudo tail /srv/sealdrop/log/collector.log        # the collector's own log
 ```
 
 - **The result** is in `/srv/sealdrop/store/<app>/<delivery>/` (README, "The store"). A reader such as an importer
-  only reads it, as the `sealdrop` user or root.
+  only reads it: best as its own user, with an ACL (below), else as the `sealdrop` user or root.
 - **A failed run** (no network, the storage not answering) shows as `failed` until the next run works; nothing is
   lost, the next run carries on.
 - **A failed check** (`sealdrop-verify.service` failed): something in the store doesn't match the notes.
@@ -102,6 +103,29 @@ sudo tail /srv/sealdrop/log/collector.log        # the collector's own log
   sudo systemctl daemon-reload
   sudo rm -r /opt/sealdrop   # the data root /srv/sealdrop stays
   ```
+
+## Another user reading the store
+
+An importer, a website or your own login can read the store as its own user, without `sudo` and without the
+collector's keys. Give that user read access with a POSIX ACL (`sudo apt install acl`), here for a user `reader`:
+
+```sh
+sudo setfacl -m u:reader:x /srv/sealdrop                   # through the data root, without listing it
+sudo setfacl -m u:reader:rx /srv/sealdrop/store
+sudo setfacl -d -m u:reader:rX /srv/sealdrop/store         # the same for everything stored from now on
+sudo setfacl -R -m u:reader:rX /srv/sealdrop/store         # and for what's stored already
+getfacl /srv/sealdrop/store                                # check: user:reader:r-x, default:user:reader:r-x
+```
+
+- **Only the store:** `config/`, `keys/`, `senders/` and `state/` stay the collector's alone. `sealdrop status` needs
+  `state/` and `senders/`: run it as the `sealdrop` user.
+- **From 0.3.1 on, the store's new folders and files are made with group bits** (0750 and 0640). The service's umask
+  (0077) clears them, so without an ACL they stay the owner's alone. Under a default ACL the umask doesn't apply, and
+  these bits are the most the ACL can grant (its *mask*). Up to 0.3.0 they were made 0700 and 0600: a default ACL
+  then gave a reader nothing on new deliveries (`getfacl` showed `#effective:---`). The `setfacl -R` line above
+  repairs those.
+- **Take it back:** `sudo setfacl -R -x u:reader /srv/sealdrop/store`, `sudo setfacl -d -x u:reader
+  /srv/sealdrop/store` and `sudo setfacl -x u:reader /srv/sealdrop`.
 
 ## The sandbox
 

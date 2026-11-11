@@ -76,7 +76,8 @@ python3 -m sealdrop verify      # check the store against the notes; a timer run
 
   Times are milliseconds since 1970, `null` when unknown. No keys, bucket names or file names.
 - **The store:** `store/<app>/<delivery>/` holds exactly the files an app handed over. A delivery appears all at once
-  or not at all; anything starting with `.` isn't a delivery. Readers only read it.
+  or not at all; anything starting with `.` isn't a delivery. Readers only read it, best as their own user with an
+  ACL on the store ([INSTALL.md](INSTALL.md#another-user-reading-the-store)).
 
 ## Setting up the inbox at Backblaze B2
 

@@ -837,7 +837,8 @@ state/       what was handled (names, version IDs, sealed checksums, results, th
              delivery), each sender's seq, the listing position, receipts still to write, status.json, instance,
              verify.json (the last check of the store) and last-backup (written by a backup job, if any)
 incoming/    downloads, each named by the hex SHA-256 of: name ‖ 0x00 ‖ version ID
-store/       THE RESULT: store/<app>/<delivery>/<path>
+store/       THE RESULT: store/<app>/<delivery>/<path>; folders and files with group bits (0750, 0640) that the
+             service's umask clears, so an owner can let a reader in with an ACL (INSTALL.md)
 conflicts/   deliveries whose ID was already stored with other content: conflicts/<app>/<delivery>/<digest>/
 rejected/    downloaded files that were rejected, each with a reason file; at most 1 GiB in all, the oldest go first
 log/         the collector's log (rotated)
