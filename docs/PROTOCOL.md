@@ -756,6 +756,10 @@ parcelable SenderInfo { boolean paired; String fingerprint; long lastPickup; lon
   pairing, sending resumed) are started as expedited jobs, so Android's power saving doesn't delay them. An ordinary
   job (30 seconds after a `commit`) can be held back by Android for about half an hour when Sealdrop hasn't been used
   lately, to batch it with other apps' jobs.
+- **The jobs never stop for good:** each run schedules the next. A run that fails in a way it didn't expect schedules
+  a retry too (15 minutes, doubling up to 4 hours); a job that starts before the first unlock after a restart comes
+  back 5 minutes later; and a watchdog job every 6 hours (persisted, no network) puts back the receipts job while
+  paired, and a send while anything waits to be sealed or uploaded. It makes no storage calls itself.
 
 ### 9.3 Receipts and warnings
 

@@ -17,13 +17,23 @@ import java.util.concurrent.atomic.AtomicBoolean
 /**
  * Sealdrop's background work, as Android jobs, one at a time: sending (30 s after the last commit, on `sendNow`, after
  * a hold, on the retry timer and when Wi-Fi comes back), receipts (§9.3's timetable), and a pairing's receipt.
+ *
+ * Each run schedules the next. So that the chain can't end for good (0.1.2): a run that fails unexpectedly still
+ * schedules a retry, a job that starts before the first unlock comes back later, and a watchdog every 6 hours puts
+ * back any job that's missing.
  */
 class Jobs : JobService() {
     private val running = ConcurrentHashMap<Int, AtomicBoolean>()
 
     override fun onStartJob(params: JobParameters): Boolean {
-        // Credential-encrypted storage: nothing to do before the first unlock after a restart (§9.4).
-        if (!getSystemService(UserManager::class.java).isUserUnlocked) return false
+        // Credential-encrypted storage: nothing can be done before the first unlock after a restart (§9.4). The job
+        // comes back in a few minutes instead of being dropped (the watchdog is periodic: its next turn will do).
+        if (!getSystemService(UserManager::class.java).isUserUnlocked) {
+            if (params.jobId != WATCHDOG) {
+                schedule(this, params.jobId, JobRules.UNTIL_UNLOCKED_MS, params.extras.getInt(ATTEMPT, 0))
+            }
+            return false
+        }
         val stop = AtomicBoolean()
         running[params.jobId] = stop
         work.execute {
@@ -31,12 +41,29 @@ class Jobs : JobService() {
                 run(params, stop)
             } catch (e: Exception) {
                 Engine.error("job ${params.jobId}: ${e.javaClass.simpleName}")
+                retryAfterError(params)
             } finally {
                 running.remove(params.jobId)
                 jobFinished(params, false)
             }
         }
         return true
+    }
+
+    /** An error the run didn't expect (a bug, a database error): it never ends the chain of jobs. */
+    private fun retryAfterError(params: JobParameters) {
+        try {
+            val attempt = params.extras.getInt(ATTEMPT, 0)
+            when (params.jobId) {
+                WATCHDOG -> Unit // periodic: it comes back by itself
+                PAIR -> schedule(this, PAIR, Pairer.POLL_MS)
+                RECEIPTS -> schedule(this, RECEIPTS, JobRules.afterErrorMs(attempt), attempt + 1)
+                else -> schedule(this, SEND, JobRules.afterErrorMs(attempt), attempt + 1)
+            }
+            ensureWatchdog(this)
+        } catch (e: Exception) {
+            Engine.error("job ${params.jobId}: no retry (${e.javaClass.simpleName})")
+        }
     }
 
     override fun onStopJob(params: JobParameters): Boolean {
@@ -49,6 +76,10 @@ class Jobs : JobService() {
         when (params.jobId) {
             PAIR -> {
                 if (Pairer(engine).pollQuietly() == Pairer.Poll.WAITING) schedule(this, PAIR, Pairer.POLL_MS)
+                return
+            }
+            WATCHDOG -> {
+                watch(this, engine)
                 return
             }
             else -> {
@@ -83,6 +114,7 @@ class Jobs : JobService() {
         const val RECEIPTS = 2
         const val PAIR = 3
         const val WIFI = 4
+        const val WATCHDOG = 5
         private const val ATTEMPT = "attempt"
         private const val COMMIT_PAUSE_MS = 30_000L
 
@@ -117,9 +149,34 @@ class Jobs : JobService() {
 
         fun pairing(context: Context) = schedule(context, PAIR, Pairer.POLL_MS)
 
-        /** At start: the receipts job is always scheduled while paired. */
+        /** At start: the receipts job and the watchdog are always scheduled while paired. */
         fun ensure(context: Context) {
             if (scheduler(context).getPendingJob(RECEIPTS) == null) schedule(context, RECEIPTS, 60_000)
+            ensureWatchdog(context)
+        }
+
+        /** Every 6 hours, persisted, without a network: it only checks that the other jobs are there ([watch]). */
+        private fun ensureWatchdog(context: Context) {
+            if (scheduler(context).getPendingJob(WATCHDOG) != null) return
+            val job = JobInfo.Builder(WATCHDOG, ComponentName(context, Jobs::class.java))
+                .setPeriodic(JobRules.WATCHDOG_EVERY_MS).setPersisted(true).build()
+            scheduler(context).schedule(job)
+        }
+
+        /**
+         * The watchdog's turn: while paired, the receipts job must be scheduled, and so must a send while anything waits
+         * to be sealed or uploaded. Nothing else: no network, no storage call.
+         */
+        private fun watch(context: Context, engine: Engine) {
+            if (engine.paired() == null) return
+            ensure(context)
+            val unsent = engine.db.long("SELECT COUNT(*) FROM deliveries WHERE state = 1") +
+                engine.db.long("SELECT COUNT(*) FROM uploads WHERE state = ?", Outbox.UPLOAD_SEALED)
+            val scheduler = scheduler(context)
+            if (unsent > 0 && scheduler.getPendingJob(SEND) == null && scheduler.getPendingJob(WIFI) == null) {
+                Engine.error("watchdog: $unsent waiting without a send job; scheduled one")
+                sendSoon(context)
+            }
         }
 
         fun cancelAll(context: Context) = scheduler(context).cancelAll()
@@ -130,7 +187,10 @@ class Jobs : JobService() {
                 result.retryIn != null -> schedule(context, SEND, result.retryIn, attempt + 1)
             }
             if (result.waitingForWifi) schedule(context, WIFI, 0)
-            if (engine.paired() != null) schedule(context, RECEIPTS, Sync.receiptsIn(engine))
+            if (engine.paired() != null) {
+                schedule(context, RECEIPTS, Sync.receiptsIn(engine))
+                ensureWatchdog(context) // also on phones updated from 0.1.1, without opening Sealdrop
+            }
         }
     }
 }

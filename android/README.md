@@ -178,7 +178,10 @@ debug build signed with Android's debug key. `./gradlew -Psealdrop.ownerDebug :a
 - **Jobs:** a run someone asked for (`sendNow`, Send now, the end of pairing, sending resumed) and the first run after
   a hold are expedited jobs. The run 30 seconds after a `commit` is an ordinary job, which Android may hold back for
   about half an hour when Sealdrop hasn't been used lately (it batches such jobs), so an app's "send now" is the way
-  to send at once.
+  to send at once. Since 0.1.2, a run that fails unexpectedly still schedules a retry, a job that starts before the
+  first unlock comes back 5 minutes later instead of being dropped, and a watchdog job every 6 hours puts back any job
+  that's missing (`send/JobRules.kt`). `RECEIVE_BOOT_COMPLETED` stays: Android needs it for jobs that survive a
+  restart.
 - **Receipts:** an entry whose digest differs from the phone's own counts as "the collector reports a problem". A
   whole upload refused for `unknown-sender` changes nothing on the phone (it happens after pairing again, with an old
   upload). An upload whose signature fails is matched to nothing, as §6 says, so its deliveries stay "in the inbox"
