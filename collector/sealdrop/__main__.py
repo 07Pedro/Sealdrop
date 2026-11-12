@@ -194,7 +194,8 @@ _EXPLAINED = {
     "missing": "noted, but not in the store",
     "changed": "the files differ from when they were stored",
     "unreadable": "a file couldn't be read: the disk may be failing",
-    "unknown": "in the store, but not in the notes",
+    "unknown": "in the store, but not in the notes (one right after an interrupted run is normal: the next run "
+               "notes it)",
 }
 
 

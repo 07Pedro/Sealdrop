@@ -203,6 +203,8 @@ class FakeB2:
         if not self._need(key, "writeKeys"):
             return self._error(401, "unauthorized")
         assert "validDurationInSeconds" not in r and "bucketId" not in r
+        if r.get("namePrefix") == "":
+            return self._error(500, "internal_error", "internal error")  # what Backblaze answers (seen 2026-11-11)
         new = Key(self._id("005key"), "K005" + self._id("secret") + "xyz", r["keyName"], list(r["capabilities"]),
                   r.get("bucketIds"), r.get("namePrefix"))
         if self.extra_capability and self.extra_capability[0] == new.name:

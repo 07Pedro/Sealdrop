@@ -7,7 +7,8 @@ of RAM is plenty). The collector runs every 10 minutes from a systemd timer, as 
 against a test bucket, and all the collector's tests inside it), and in use on a Raspberry Pi 3B+ with 64-bit Raspberry
 Pi OS. New in 0.3.0: `sealdrop-verify.service` is checked with `systemd-analyze` (verify, security); its first run on
 the Pi is still to come. New in 0.3.1: the store can be shared with an ACL ("Another user reading the store"), tested
-with real ACLs on ext4 in WSL.
+with real ACLs on ext4 in WSL. New in 0.3.2: the B2 module makes a key for a whole bucket without sending an empty
+`namePrefix` (Backblaze answered that with 500 `internal_error`), for setups that reuse it, such as a backup's.
 
 ## What you need
 
@@ -30,8 +31,13 @@ with real ACLs on ext4 in WSL.
   UUID=…  /srv  ext4  defaults,noatime,nofail  0  2
   ```
 
-  `nofail` lets the Pi start without the disk; the collector then doesn't run, because the service needs the data
-  root's disk mounted. It never writes to the SD card in its place.
+  `nofail` lets the Pi start without the disk. The collector then doesn't run, and what stops it is the empty
+  `/srv` folder underneath on the SD card: without the disk there's no `/srv/sealdrop`, so the service's sandbox
+  can't be set up (`226/NAMESPACE`) and nothing is written to the card in the disk's place. So keep that folder
+  empty: the install script stops instead of creating `/srv/sealdrop` when `/etc/fstab` names a disk for `/srv`
+  that isn't mounted (from 0.3.0), and you can lock the folder for good with `chattr +i`, reached through a bind
+  mount of `/` while the disk stays mounted (`sudo mount --bind / /mnt/root`, `sudo chattr +i /mnt/root/srv`,
+  `sudo umount /mnt/root`; mounting onto it still works).
 
 The install script says which disk the data root is on, and warns if it's an SD card.
 

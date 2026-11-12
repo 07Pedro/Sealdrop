@@ -327,5 +327,29 @@ class ReadBack(unittest.TestCase):
         self.assertRegex(setup_b2.random_name("up/"), r"^up/[a-z2-7]{32}$")
 
 
+class WholeBucketKey(unittest.TestCase):
+    """A key without a prefix (for example a backup's): `namePrefix` is left out, because Backblaze answers an empty
+    one with 500 internal_error, and the key reads back as `namePrefix: null`."""
+
+    def test_no_prefix(self):
+        fake = FakeB2()
+        account = b2.Account(fake.master.id, fake.master.secret, transport=fake)
+        bucket_id = account.create_bucket("whole-bucket-test", setup_b2.LIFECYCLE)["bucketId"]
+        for prefix in ("", None):
+            with self.subTest(prefix=prefix):
+                made = account.create_key(f"whole-{prefix!r}", ["listFiles", "readFiles"], bucket_id, prefix)
+                self.assertIsNone(made["namePrefix"])
+                listed = next(k for k in account.list_keys() if k["applicationKeyId"] == made["applicationKeyId"])
+                self.assertEqual(setup_b2.key_problems(listed, bucket_id, prefix, ["readFiles", "listFiles"]), [])
+                self.assertEqual(setup_b2.key_problems(listed, bucket_id, "up/", ["readFiles", "listFiles"]),
+                                 ["folder None"])
+        made = account.create_key("up-only", ["writeFiles"], bucket_id, "up/")  # a prefix is still sent
+        self.assertEqual(fake.keys[made["applicationKeyId"]].prefix, "up/")
+        with self.assertRaises(b2.B2Error) as caught:  # the fake fails as Backblaze does
+            account.call("b2_create_key", {"accountId": account.account_id, "keyName": "empty", "capabilities":
+                                           ["listFiles"], "bucketIds": [bucket_id], "namePrefix": ""})
+        self.assertEqual((caught.exception.status, caught.exception.code), (500, "internal_error"))
+
+
 if __name__ == "__main__":
     unittest.main()

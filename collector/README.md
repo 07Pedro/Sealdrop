@@ -57,7 +57,9 @@ python3 -m sealdrop verify      # check the store against the notes; a timer run
   know. It changes neither the store nor the notes, and it holds the collector's lock while it checks (runs skip
   meanwhile and carry on after). The result goes into `state/verify.json` (counts only) for `status`. It works on a
   restored copy of a data root too, without the keys and settings; that's how a backup's restore test can check the
-  copy. Exit code 0: all as noted; 1: something doesn't match (it lists what); 2: no notes to check.
+  copy. Exit code 0: all as noted; 1: something doesn't match (it lists what); 2: no notes to check. One `unknown`
+  folder right after an interrupted run (a power cut) is expected: that run had moved the delivery into the store
+  but not yet noted it, and the next run notes it.
 - **`status --json`** is for a dashboard or a monitoring script. It reads only `state/status.json`,
   `state/verify.json`, `state/lock` and `senders/`, so it also works from a read-only copy without the keys and
   settings, and it writes nothing:

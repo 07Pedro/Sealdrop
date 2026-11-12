@@ -92,11 +92,13 @@ class Account:
 
     # keys
 
-    def create_key(self, name: str, capabilities: list[str], bucket_id: str, prefix: str) -> dict:
-        """No expiry date: an expired key would silently stop the syncing."""
+    def create_key(self, name: str, capabilities: list[str], bucket_id: str, prefix: str | None) -> dict:
+        """No expiry date: an expired key would silently stop the syncing. Without a prefix ("" or None) the key
+        reaches the whole bucket, and `namePrefix` is left out: Backblaze answers an empty one with
+        500 internal_error (seen 2026-11-11)."""
         return self.call("b2_create_key", {
             "accountId": self.account_id, "keyName": name, "capabilities": capabilities,
-            "bucketIds": [bucket_id], "namePrefix": prefix,
+            "bucketIds": [bucket_id], **({"namePrefix": prefix} if prefix else {}),
         })
 
     def list_keys(self) -> list[dict]:

@@ -101,14 +101,15 @@ def bucket_problems(bucket: dict) -> list[str]:
     return problems
 
 
-def key_problems(key: dict, bucket_id: str, prefix: str, capabilities: list[str]) -> list[str]:
-    """What's not as it should be in a key as `b2_list_keys` shows it."""
+def key_problems(key: dict, bucket_id: str, prefix: str | None, capabilities: list[str]) -> list[str]:
+    """What's not as it should be in a key as `b2_list_keys` shows it. No prefix ("" or None): the whole bucket,
+    which Backblaze shows as `namePrefix: null`."""
     problems = []
     if sorted(key.get("capabilities") or []) != sorted(capabilities):
         problems.append(f"permissions {sorted(key.get('capabilities') or [])}")
     if key.get("bucketIds") != [bucket_id]:
         problems.append(f"buckets {key.get('bucketIds')}")
-    if key.get("namePrefix") != prefix:
+    if key.get("namePrefix") != (prefix or None):
         problems.append(f"folder {key.get('namePrefix')!r}")
     if key.get("expirationTimestamp") is not None:
         problems.append("expires")
